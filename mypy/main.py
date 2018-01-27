@@ -346,6 +346,9 @@ def process_options(args: List[str],
                         "(defaults to {})".format(defaults.CONFIG_FILE))
     add_invertible_flag('--show-column-numbers', default=False,
                         help="Show column numbers in error messages")
+    add_invertible_flag('--show-error-code', default=False,
+                        help="Show error code in error messages")
+
     parser.add_argument('--find-occurrences', metavar='CLASS.MEMBER',
                         dest='special-opts:find_occurrences',
                         help="print out all usages of a class member (experimental)")

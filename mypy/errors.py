@@ -6,6 +6,9 @@ from contextlib import contextmanager
 
 from typing import Tuple, List, TypeVar, Set, Dict, Iterator, Optional, cast
 
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
+
 from mypy.options import Options
 from mypy.version import __version__ as mypy_version
 
@@ -40,10 +43,14 @@ class ErrorInfo:
     column = 0   # -1 if unknown
 
     # Either 'error', 'note', or 'warning'.
-    severity = ''
+    @property
+    def severity(self) -> str:
+        return self.error_code.severity
 
     # The error message.
-    message = ''
+    @property
+    def message(self) -> str:
+        return self.error_code.message
 
     # If True, we should halt build after the file that generated this error.
     blocker = False
@@ -65,8 +72,7 @@ class ErrorInfo:
                  function_or_member: Optional[str],
                  line: int,
                  column: int,
-                 severity: str,
-                 message: str,
+                 error_code: ErrorCode,
                  blocker: bool,
                  only_once: bool,
                  origin: Optional[Tuple[str, int]] = None,
@@ -78,8 +84,7 @@ class ErrorInfo:
         self.function_or_member = function_or_member
         self.line = line
         self.column = column
-        self.severity = severity
-        self.message = message
+        self.error_code = error_code
         self.blocker = blocker
         self.only_once = only_once
         self.origin = origin or (file, line)
@@ -134,6 +139,9 @@ class Errors:
     # Set to True to show column numbers in error messages.
     show_column_numbers = False  # type: bool
 
+    # Set to True to show error code in error messages.
+    show_error_code = False  # type: bool
+
     # State for keeping track of the current fine-grained incremental mode target.
     # (See mypy.server.update for more about targets.)
     #
@@ -150,9 +158,11 @@ class Errors:
     target_ignore_depth = 0
 
     def __init__(self, show_error_context: bool = False,
-                 show_column_numbers: bool = False) -> None:
+                 show_column_numbers: bool = False,
+                 show_error_code: bool = False) -> None:
         self.show_error_context = show_error_context
         self.show_column_numbers = show_column_numbers
+        self.show_error_code = show_error_code
         self.initialize()
 
     def initialize(self) -> None:
@@ -174,7 +184,7 @@ class Errors:
         self.initialize()
 
     def copy(self) -> 'Errors':
-        new = Errors(self.show_error_context, self.show_column_numbers)
+        new = Errors(self.show_error_context, self.show_column_numbers, self.show_error_code)
         new.file = self.file
         new.import_ctx = self.import_ctx[:]
         new.type_name = self.type_name[:]
@@ -293,12 +303,11 @@ class Errors:
         """Replace the entire import context with a new value."""
         self.import_ctx = ctx[:]
 
-    def report(self,
+    def reportErrorCode(self,
+               error_code: ErrorCode,
                line: int,
                column: int,
-               message: str,
                blocker: bool = False,
-               severity: str = 'error',
                file: Optional[str] = None,
                only_once: bool = False,
                origin_line: Optional[int] = None,
@@ -320,13 +329,41 @@ class Errors:
         if file is None:
             file = self.file
         if offset:
-            message = " " * offset + message
+            message = " " * offset + error_code.message
+            error_code = ErrorCode(error_code.code, error_code.severity, message)
         info = ErrorInfo(self.import_context(), file, self.current_module(), type,
-                         self.function_or_member[-1], line, column, severity, message,
+                         self.function_or_member[-1], line, column, error_code,
                          blocker, only_once,
                          origin=(self.file, origin_line) if origin_line else None,
                          target=self.current_target())
         self.add_error_info(info)
+
+    def report(self,
+               line: int,
+               column: int,
+               message: str,
+               blocker: bool = False,
+               severity: str = 'error',
+               file: Optional[str] = None,
+               only_once: bool = False,
+               origin_line: Optional[int] = None,
+               offset: int = 0) -> None:
+        """Report message at the given line using the current error context.
+
+        Args:
+            line: line number of error
+            message: message to report
+            blocker: if True, don't continue analysis after this error
+            severity: 'error', 'note' or 'warning'
+            file: if non-None, override current file as context
+            only_once: if True, only report this exact message once per build
+            origin_line: if non-None, override current context as origin
+        """
+        # TODO: This method was kept only for backward compatibility
+        # TODO: Caller should Use reportErrorCode directly
+        self.reportErrorCode(ErrorCode(0, severity, message),
+                             line, column,
+                             blocker, file, only_once, origin_line, offset)
 
     def _add_error_info(self, file: str, info: ErrorInfo) -> None:
         assert file not in self.flushed_files
@@ -355,7 +392,7 @@ class Errors:
             for line in ignored_lines - self.used_ignored_lines[file]:
                 # Don't use report since add_error_info will ignore the error!
                 info = ErrorInfo(self.import_context(), file, self.current_module(), None,
-                                 None, line, -1, 'note', "unused 'type: ignore' comment",
+                                 None, line, -1, errorcode.UNUSED_TYPE_IGNORE_COMMENT(),
                                  False, False)
                 self._add_error_info(file, info)
 
@@ -406,7 +443,7 @@ class Errors:
         a = []  # type: List[str]
         errors = self.render_messages(self.sort_messages(error_info))
         errors = self.remove_duplicates(errors)
-        for file, line, column, severity, message in errors:
+        for file, line, column, severity, message, code in errors:
             s = ''
             if file is not None:
                 if self.show_column_numbers and line is not None and line >= 0 \
@@ -416,6 +453,8 @@ class Errors:
                     srcloc = '{}:{}'.format(file, line)
                 else:
                     srcloc = file
+                if self.show_error_code:
+                    severity = severity[0].upper() + str(code)
                 s = '{}: {}: {}'.format(srcloc, severity, message)
             else:
                 s = message
@@ -455,7 +494,7 @@ class Errors:
                    if info.target)
 
     def render_messages(self, errors: List[ErrorInfo]) -> List[Tuple[Optional[str], int, int,
-                                                                     str, str]]:
+                                                                     str, str, int]]:
         """Translate the messages into a sequence of tuples.
 
         Each tuple is of form (path, line, col, message.  The rendered
@@ -463,8 +502,8 @@ class Errors:
         item may be None. If the line item is negative, the line
         number is not defined for the tuple.
         """
-        result = []  # type: List[Tuple[Optional[str], int, int, str, str]]
-        # (path, line, column, severity, message)
+        result = []  # type: List[Tuple[Optional[str], int, int, str, str, int]]
+        # (path, line, column, severity, message, error_code)
 
         prev_import_context = []  # type: List[Tuple[str, int]]
         prev_function_or_member = None  # type: Optional[str]
@@ -489,7 +528,8 @@ class Errors:
                     # Remove prefix to ignore from path (if present) to
                     # simplify path.
                     path = remove_path_prefix(path, self.ignore_prefix)
-                    result.append((None, -1, -1, 'note', fmt.format(path, line)))
+                    result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
+                        fmt.format(path, line)).toTuple(None, -1, -1))
                     i -= 1
 
             file = self.simplify_path(e.file)
@@ -501,27 +541,28 @@ class Errors:
                     e.type != prev_type):
                 if e.function_or_member is None:
                     if e.type is None:
-                        result.append((file, -1, -1, 'note', 'At top level:'))
+                        result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
+                            'At top level:').toTuple(file, -1, -1))
                     else:
-                        result.append((file, -1, -1, 'note', 'In class "{}":'.format(
-                            e.type)))
+                        result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
+                            'In class "{}":'.format(e.type)).toTuple(file, -1, -1))
                 else:
                     if e.type is None:
-                        result.append((file, -1, -1, 'note',
-                                       'In function "{}":'.format(
-                                           e.function_or_member)))
+                        result.append(errorcode.MSG_SHOW_ERROR_CONTEXT('In function "{}":'.format(
+                            e.function_or_member)).toTuple(file, -1, -1))
                     else:
-                        result.append((file, -1, -1, 'note',
-                                       'In member "{}" of class "{}":'.format(
-                                           e.function_or_member, e.type)))
+                        result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
+                            'In member "{}" of class "{}":'.format(
+                                e.function_or_member, e.type)).toTuple(file, -1, -1))
             elif e.type != prev_type:
                 if e.type is None:
-                    result.append((file, -1, -1, 'note', 'At top level:'))
+                    result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
+                        'At top level:').toTuple(file, -1, -1))
                 else:
-                    result.append((file, -1, -1, 'note',
-                                   'In class "{}":'.format(e.type)))
+                    result.append(errorcode.MSG_SHOW_ERROR_CONTEXT('In class "{}":'.format(
+                        e.type)).toTuple(file, -1, -1))
 
-            result.append((file, e.line, e.column, e.severity, e.message))
+            result.append((file, e.line, e.column, e.severity, e.message, e.error_code.code))
 
             prev_import_context = e.import_ctx
             prev_function_or_member = e.function_or_member
@@ -552,10 +593,10 @@ class Errors:
             result.extend(a)
         return result
 
-    def remove_duplicates(self, errors: List[Tuple[Optional[str], int, int, str, str]]
-                          ) -> List[Tuple[Optional[str], int, int, str, str]]:
+    def remove_duplicates(self, errors: List[Tuple[Optional[str], int, int, str, str, int]]
+                          ) -> List[Tuple[Optional[str], int, int, str, str, int]]:
         """Remove duplicates from a sorted error list."""
-        res = []  # type: List[Tuple[Optional[str], int, int, str, str]]
+        res = []  # type: List[Tuple[Optional[str], int, int, str, str, int]]
         i = 0
         while i < len(errors):
             dup = False

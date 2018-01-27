@@ -168,6 +168,7 @@ class Options:
         # -- experimental options --
         self.shadow_file = None  # type: Optional[Tuple[str, str]]
         self.show_column_numbers = False  # type: bool
+        self.show_error_code = False  # type: bool
         self.dump_graph = False
         self.dump_deps = False
 
