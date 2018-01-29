@@ -444,21 +444,8 @@ class Errors:
         errors = self.render_messages(self.sort_messages(error_info))
         errors = self.remove_duplicates(errors)
         for file, line, column, severity, message, code in errors:
-            s = ''
-            if file is not None:
-                if self.show_column_numbers and line is not None and line >= 0 \
-                        and column is not None and column >= 0:
-                    srcloc = '{}:{}:{}'.format(file, line, 1 + column)
-                elif line is not None and line >= 0:
-                    srcloc = '{}:{}'.format(file, line)
-                else:
-                    srcloc = file
-                if self.show_error_code:
-                    severity = severity[0].upper() + str(code)
-                s = '{}: {}: {}'.format(srcloc, severity, message)
-            else:
-                s = message
-            a.append(s)
+            a.append(format_error((file, line, column, severity, message, code),
+                                  self.show_column_numbers, self.show_error_code))
         return a
 
     def file_messages(self, path: str) -> List[str]:
@@ -518,18 +505,21 @@ class Errors:
                 i = last
                 while i >= 0:
                     path, line = e.import_ctx[i]
-                    fmt = '{}:{}: note: In module imported here'
-                    if i < last:
-                        fmt = '{}:{}: note: ... from here'
-                    if i > 0:
-                        fmt += ','
-                    else:
-                        fmt += ':'
                     # Remove prefix to ignore from path (if present) to
                     # simplify path.
                     path = remove_path_prefix(path, self.ignore_prefix)
+
+                    if i < last:
+                        msg = "... from here"
+                    else:
+                        msg = "In module imported here"
+
+                    if i > 0:
+                        msg += ','
+                    else:
+                        msg += ':'
                     result.append(errorcode.MSG_SHOW_ERROR_CONTEXT(
-                        fmt.format(path, line)).toTuple(None, -1, -1))
+                        msg).toTuple(path, line, -1))
                     i -= 1
 
             file = self.simplify_path(e.file)
@@ -678,16 +668,11 @@ def report_internal_error(err: Exception, file: Optional[str], line: int,
         print("Failed to dump errors:", repr(e), file=sys.stderr)
 
     # Compute file:line prefix for official-looking error messages.
-    if file:
-        if line:
-            prefix = '{}:{}: '.format(file, line)
-        else:
-            prefix = '{}: '.format(file)
-    else:
-        prefix = ''
 
     # Print "INTERNAL ERROR" message.
-    print('{}error: INTERNAL ERROR --'.format(prefix),
+    print(format_error(errorcode.INTERNAL_ERROR().toTuple(file, line, -1),
+          errors.show_column_numbers,
+          errors.show_error_code),
           'please report a bug at https://github.com/python/mypy/issues',
           'version: {}'.format(mypy_version),
           file=sys.stderr)
@@ -701,9 +686,11 @@ def report_internal_error(err: Exception, file: Optional[str], line: int,
     # If requested, print traceback, else print note explaining how to get one.
     if not options.show_traceback:
         if not options.pdb:
-            print('{}: note: please use --show-traceback to print a traceback '
-                  'when reporting a bug'.format(prefix),
-                  file=sys.stderr)
+            print(format_error(errorcode.MSG_SHOW(
+                  "please use --show-traceback to print a traceback "
+                  "when reporting a bug").toTuple(file, line, -1),
+                errors.show_column_numbers,
+                errors.show_error_code), file=sys.stderr)
     else:
         tb = traceback.extract_stack()[:-2]
         tb2 = traceback.extract_tb(sys.exc_info()[2])
@@ -711,7 +698,41 @@ def report_internal_error(err: Exception, file: Optional[str], line: int,
         for s in traceback.format_list(tb + tb2):
             print(s.rstrip('\n'))
         print('{}: {}'.format(type(err).__name__, err))
-        print('{}: note: use --pdb to drop into pdb'.format(prefix), file=sys.stderr)
+        print(format_error(errorcode.MSG_SHOW("use --pdb to drop into pdb").toTuple(file,
+                                                                                    line,
+                                                                                    -1),
+                  errors.show_column_numbers,
+                  errors.show_error_code),
+              file=sys.stderr)
 
     # Exit.  The caller has nothing more to say.
     raise SystemExit(1)
+
+
+def format_error(error: Tuple[Optional[str], int, int, str, str, int],
+                 show_column_numbers: bool,
+                 show_error_code: bool) -> str:
+    path = "" if error[0] is None else error[0]
+    line = error[1]
+    column = error[2]
+    severity = error[3]
+    message = error[4]
+    if show_error_code:
+        code = error[5]
+        severity = severity[0].upper() + str(code)
+
+    s = ''
+    if path is not None:
+        if show_column_numbers and line is not None and line >= 0 \
+                and column is not None and column >= 0:
+            srcloc = '{}:{}:{}'.format(path, line, 1 + column)
+        elif line is not None and line >= 0:
+            srcloc = '{}:{}'.format(path, line)
+        else:
+            srcloc = path
+        if show_error_code:
+            severity = severity[0].upper() + str(code)
+        s = '{}: {}: {}'.format(srcloc, severity, message)
+    else:
+        s = message
+    return s

@@ -52,7 +52,8 @@ from mypy.types import Type
 from mypy.version import __version__
 from mypy.plugin import Plugin, DefaultPlugin, ChainedPlugin
 from mypy.defaults import PYTHON3_VERSION_MIN
-
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
 
 PYTHON_EXTENSIONS = ['.pyi', '.py']
 
@@ -463,8 +464,8 @@ def load_plugins(options: Options, errors: Errors) -> Plugin:
     if line == -1:
         line = 1  # We need to pick some line number that doesn't look too confusing
 
-    def plugin_error(message: str) -> None:
-        errors.report(line, 0, message)
+    def plugin_error(error_code: ErrorCode) -> None:
+        errors.reportErrorCode(error_code, line, 0)
         errors.raise_error()
 
     custom_plugins = []  # type: List[Plugin]
@@ -474,11 +475,11 @@ def load_plugins(options: Options, errors: Errors) -> Plugin:
         plugin_path = os.path.join(os.path.dirname(options.config_file), plugin_path)
 
         if not os.path.isfile(plugin_path):
-            plugin_error("Can't find plugin '{}'".format(plugin_path))
+            plugin_error(errorcode.PLUGIN_CANT_FIND(plugin_path))
         plugin_dir = os.path.dirname(plugin_path)
         fnam = os.path.basename(plugin_path)
         if not fnam.endswith('.py'):
-            plugin_error("Plugin '{}' does not have a .py extension".format(fnam))
+            plugin_error(errorcode.PLUGIN_DOES_NOT_HAVE_PY_EXTENSION(fnam))
         module_name = fnam[:-3]
         import importlib
         sys.path.insert(0, plugin_dir)
@@ -491,21 +492,16 @@ def load_plugins(options: Options, errors: Errors) -> Plugin:
             assert sys.path[0] == plugin_dir
             del sys.path[0]
         if not hasattr(m, 'plugin'):
-            plugin_error('Plugin \'{}\' does not define entry point function "plugin"'.format(
-                plugin_path))
+            plugin_error(errorcode.PLUGIN_DOES_NOT_DEFINE_ENTRY_POINT(plugin_path))
         try:
             plugin_type = getattr(m, 'plugin')(__version__)
         except Exception:
             print('Error calling the plugin(version) entry point of {}\n'.format(plugin_path))
             raise  # Propagate to display traceback
         if not isinstance(plugin_type, type):
-            plugin_error(
-                'Type object expected as the return value of "plugin"; got {!r} (in {})'.format(
-                    plugin_type, plugin_path))
+            plugin_error(errorcode.PLUGIN_TYPE_OBJECT_EXPECTED(plugin_type, plugin_path))
         if not issubclass(plugin_type, Plugin):
-            plugin_error(
-                'Return value of "plugin" must be a subclass of "mypy.plugin.Plugin" '
-                '(in {})'.format(plugin_path))
+            plugin_error(errorcode.PLUGIN_RETURN_VALUE_MUST_SUBCLASS_PLUGIN(plugin_path))
         try:
             custom_plugins.append(plugin_type(options))
         except Exception:
@@ -698,25 +694,34 @@ class BuildManager:
 
     def module_not_found(self, path: str, source: str, line: int, target: str) -> None:
         self.errors.set_file(path, source)
-        stub_msg = "(Stub files are from https://github.com/python/typeshed)"
         if target == 'builtins':
-            self.errors.report(line, 0, "Cannot find 'builtins' module. Typeshed appears broken!",
-                               blocker=True)
+            self.errors.reportErrorCode(errorcode.CANNOT_FIND_BUILTINS_MODULE(),
+                line, 0, blocker=True)
             self.errors.raise_error()
         elif ((self.options.python_version[0] == 2 and moduleinfo.is_py2_std_lib_module(target))
               or (self.options.python_version[0] >= 3
                   and moduleinfo.is_py3_std_lib_module(target))):
-            self.errors.report(
-                line, 0, "No library stub file for standard library module '{}'".format(target))
-            self.errors.report(line, 0, stub_msg, severity='note', only_once=True)
+            self.errors.reportErrorCode(
+                errorcode.NO_LIBRARY_STUB_FILE_FOR_STANDARD_LIBRARY_MODULE(target),
+                line, 0)
+            self.errors.reportErrorCode(errorcode.MSG_STUB_FILES_ARE_FROM(),
+                line,
+                0,
+                only_once=True)
         elif moduleinfo.is_third_party_module(target):
-            self.errors.report(line, 0, "No library stub file for module '{}'".format(target))
-            self.errors.report(line, 0, stub_msg, severity='note', only_once=True)
+            self.errors.reportErrorCode(
+                errorcode.NO_LIBRARY_STUB_FILE_FOR_MODULE(target),
+                line, 0)
+            self.errors.reportErrorCode(errorcode.MSG_STUB_FILES_ARE_FROM(),
+                line, 0, only_once=True)
         else:
-            self.errors.report(line, 0, "Cannot find module named '{}'".format(target))
-            self.errors.report(line, 0, '(Perhaps setting MYPYPATH '
-                               'or using the "--ignore-missing-imports" flag would help)',
-                               severity='note', only_once=True)
+            self.errors.reportErrorCode(
+                errorcode.CANNOT_FIND_MODULE(target),
+                line, 0)
+            self.errors.reportErrorCode(errorcode.MSG_SHOW('(Perhaps setting MYPYPATH '
+                               'or using the "--ignore-missing-imports" flag would help)'),
+                               line, 0,
+                               only_once=True)
 
     def report_file(self,
                     file: MypyFile,
@@ -1644,11 +1649,14 @@ class State:
         manager = self.manager
         manager.errors.set_import_context([])
         manager.errors.set_file(ancestor_for.xpath, ancestor_for.id)
-        manager.errors.report(-1, -1, "Ancestor package '%s' ignored" % (id,),
-                              severity='note', only_once=True)
-        manager.errors.report(-1, -1,
-                              "(Using --follow-imports=error, submodule passed on command line)",
-                              severity='note', only_once=True)
+        manager.errors.reportErrorCode(
+            errorcode.MSG_SHOW_ANCESTOR_PACKAGE_IGNORED(id), -1, -1, only_once=True)
+        manager.errors.reportErrorCode(
+            errorcode.MSG_SHOW(
+                "(Using --follow-imports=error, submodule passed on command line)"),
+            -1,
+            -1,
+            only_once=True)
 
     def skipping_module(self, id: str, path: str) -> None:
         assert self.caller_state, (id, path)
@@ -1657,12 +1665,11 @@ class State:
         manager.errors.set_import_context(self.caller_state.import_context)
         manager.errors.set_file(self.caller_state.xpath, self.caller_state.id)
         line = self.caller_line
-        manager.errors.report(line, 0,
-                              "Import of '%s' ignored" % (id,),
-                              severity='note')
-        manager.errors.report(line, 0,
-                              "(Using --follow-imports=error, module not passed on command line)",
-                              severity='note', only_once=True)
+        manager.errors.reportErrorCode(errorcode.MSG_SHOW_IMPORT_IGNORED(id), line, 0)
+
+        manager.errors.reportErrorCode(errorcode.MSG_SHOW(
+            "(Using --follow-imports=error, module not passed on command line)"),
+            line, 0, only_once=True)
         manager.errors.set_import_context(save_import_context)
 
     def add_ancestors(self) -> None:
@@ -1873,9 +1880,11 @@ class State:
             if id == '':
                 # Must be from a relative import.
                 manager.errors.set_file(self.xpath, self.id)
-                manager.errors.report(line, 0,
-                                      "No parent module -- cannot perform relative import",
-                                      blocker=True)
+                manager.errors.reportErrorCode(
+                    errorcode.NO_PARENT_MODULE_CANNOT_PERFORM_RELATIVE_IMPORT(),
+                    line,
+                    0,
+                    blocker=True)
                 continue
             if id not in dep_line_map:
                 dependencies.append(id)
@@ -2152,7 +2161,7 @@ def load_graph(sources: List[BuildSource], manager: BuildManager) -> Graph:
             continue
         if st.id in graph:
             manager.errors.set_file(st.xpath, st.id)
-            manager.errors.report(-1, -1, "Duplicate module named '%s'" % st.id)
+            manager.errors.reportErrorCode(errorcode.DUPLICATE_MODULE_NAME(st.id), -1, -1)
             manager.errors.raise_error()
         graph[st.id] = st
         new.append(st)
