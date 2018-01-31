@@ -43,6 +43,8 @@ from mypy import messages
 from mypy.errors import Errors
 from mypy.fastparse import TypeConverter, parse_type_comment
 from mypy.options import Options
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
 
 try:
     from typed_ast import ast27
@@ -72,9 +74,6 @@ V = TypeVar('V')
 # There is no way to create reasonable fallbacks at this stage,
 # they must be patched later.
 _dummy_fallback = None  # type: Any
-
-TYPE_COMMENT_SYNTAX_ERROR = 'syntax error in type comment'
-TYPE_COMMENT_AST_ERROR = 'invalid type comment'
 
 
 def parse(source: Union[str, bytes],
@@ -152,8 +151,8 @@ class ASTConverter(ast27.NodeTransformer):
         self.is_stub = is_stub
         self.errors = errors
 
-    def fail(self, msg: str, line: int, column: int) -> None:
-        self.errors.report(line, column, msg, blocker=True)
+    def fail(self, error_code: ErrorCode, line: int, column: int) -> None:
+        self.errors.reportErrorCode(error_code, line, column, blocker=True)
 
     def generic_visit(self, node: ast27.AST) -> None:
         raise RuntimeError('AST node not implemented: ' + str(type(node)))
@@ -333,7 +332,7 @@ class ASTConverter(ast27.NodeTransformer):
                 if self.in_class() and len(arg_types) < len(args):
                     arg_types.insert(0, AnyType(TypeOfAny.special_form))
             except SyntaxError:
-                self.fail(TYPE_COMMENT_SYNTAX_ERROR, n.lineno, n.col_offset)
+                self.fail(errorcode.TYPE_COMMENT_AST_ERROR(), n.lineno, n.col_offset)
                 arg_types = [AnyType(TypeOfAny.from_error)] * len(args)
                 return_type = AnyType(TypeOfAny.from_error)
         else:

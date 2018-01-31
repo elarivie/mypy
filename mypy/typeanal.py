@@ -18,6 +18,9 @@ from mypy.types import (
     TypeTranslator
 )
 
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
+
 from mypy.nodes import (
     TVAR, TYPE_ALIAS, UNBOUND_IMPORTED, TypeInfo, Context, SymbolTableNode, Var, Expression,
     IndexExpr, RefExpr, nongen_builtins, check_arg_names, check_arg_kinds, ARG_POS, ARG_NAMED,
@@ -123,14 +126,6 @@ def analyze_type_alias(node: Expression,
     return type.accept(analyzer)
 
 
-def no_subscript_builtin_alias(name: str, propose_alt: bool = True) -> str:
-    msg = '"{}" is not subscriptable'.format(name.split('.')[-1])
-    replacement = nongen_builtins[name]
-    if replacement and propose_alt:
-        msg += ', use "{}" instead'.format(replacement)
-    return msg
-
-
 class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
     """Semantic analyzer for types (semantic analysis pass 2).
 
@@ -183,7 +178,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
             if sym.node is None:
                 # UNBOUND_IMPORTED can happen if an unknown name was imported.
                 if sym.kind != UNBOUND_IMPORTED:
-                    self.fail('Internal error (node is None, kind={})'.format(sym.kind), t)
+                    self.fail(errorcode.INTERNAL_ERROR_NODE_IS_NONE(sym.kind), t)
                 return AnyType(TypeOfAny.special_form)
             fullname = sym.node.fullname()
             hook = self.plugin.get_type_analyze_hook(fullname)
@@ -191,7 +186,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                 return hook(AnalyzeTypeContext(t, t, self))
             if (fullname in nongen_builtins and t.args and
                     not sym.normalized and not self.allow_unnormalized):
-                self.fail(no_subscript_builtin_alias(fullname), t)
+                self.fail(errorcode.NO_SUBSCRIPT_BUILTIN_ALIAS(fullname), t)
             if self.tvar_scope:
                 tvar_def = self.tvar_scope.get_binding(sym)
             else:
@@ -513,8 +508,8 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
     def analyze_type(self, t: Type) -> Type:
         return t.accept(self)
 
-    def fail(self, msg: str, ctx: Context) -> None:
-        self.fail_func(msg, ctx)
+    def fail(self, error_code: ErrorCode, ctx: Context) -> None:
+        self.fail_func(error_code, ctx)
 
     @contextmanager
     def tvar_scope_frame(self) -> Iterator[None]:

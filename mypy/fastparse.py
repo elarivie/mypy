@@ -33,6 +33,8 @@ from mypy import experiments
 from mypy import messages
 from mypy.errors import Errors
 from mypy.options import Options
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
 
 try:
     from typed_ast import ast3
@@ -61,9 +63,6 @@ V = TypeVar('V')
 # There is no way to create reasonable fallbacks at this stage,
 # they must be patched later.
 _dummy_fallback = None  # type: Any
-
-TYPE_COMMENT_SYNTAX_ERROR = 'syntax error in type comment'
-TYPE_COMMENT_AST_ERROR = 'invalid type comment or annotation'
 
 
 def parse(source: Union[str, bytes],
@@ -100,7 +99,7 @@ def parse(source: Union[str, bytes],
         tree.path = fnam
         tree.is_stub = is_stub_file
     except SyntaxError as e:
-        errors.report(e.lineno, e.offset, e.msg, blocker=True)
+        errors.reportErrorCode(errorcode.SYNTAX_ERROR(e.msg), e.lineno, e.offset, blocker=True)
         tree = MypyFile([], [], False, set())
 
     if raise_on_error and errors.is_errors():
@@ -114,7 +113,8 @@ def parse_type_comment(type_comment: str, line: int, errors: Optional[Errors]) -
         typ = ast3.parse(type_comment, '<type_comment>', 'eval')
     except SyntaxError as e:
         if errors is not None:
-            errors.report(line, e.offset, TYPE_COMMENT_SYNTAX_ERROR, blocker=True)
+            errors.reportErrorCode(errorcode.SYNTAX_ERROR_TYPE_COMMENT(),
+                line, e.offset, blocker=True)
             return None
         else:
             raise
@@ -160,11 +160,11 @@ class ASTConverter(ast3.NodeTransformer):
         self.is_stub = is_stub
         self.errors = errors
 
-    def note(self, msg: str, line: int, column: int) -> None:
-        self.errors.report(line, column, msg, severity='note')
+    def note(self, error_code: ErrorCode, line: int, column: int) -> None:
+        self.errors.reportErrorCode(error_code, line, column)
 
-    def fail(self, msg: str, line: int, column: int) -> None:
-        self.errors.report(line, column, msg, blocker=True)
+    def fail(self, error_code: ErrorCode, line: int, column: int) -> None:
+        self.errors.reportErrorCode(error_code, line, column, blocker=True)
 
     def generic_visit(self, node: ast3.AST) -> None:
         raise RuntimeError('AST node not implemented: ' + str(type(node)))
@@ -341,7 +341,7 @@ class ASTConverter(ast3.NodeTransformer):
                         isinstance(func_type_ast.argtypes[0], ast3.Ellipsis)):
                     if n.returns:
                         # PEP 484 disallows both type annotations and type comments
-                        self.fail(messages.DUPLICATE_TYPE_SIGNATURES, n.lineno, n.col_offset)
+                        self.fail(errorcode.DUPLICATE_TYPE_SIGNATURES(), n.lineno, n.col_offset)
                     arg_types = [a.type_annotation
                                  if a.type_annotation is not None
                                  else AnyType(TypeOfAny.unannotated)
@@ -349,7 +349,7 @@ class ASTConverter(ast3.NodeTransformer):
                 else:
                     # PEP 484 disallows both type annotations and type comments
                     if n.returns or any(a.type_annotation is not None for a in args):
-                        self.fail(messages.DUPLICATE_TYPE_SIGNATURES, n.lineno, n.col_offset)
+                        self.fail(errorcode.DUPLICATE_TYPE_SIGNATURES(), n.lineno, n.col_offset)
                     translated_args = (TypeConverter(self.errors, line=n.lineno)
                                        .translate_expr_list(func_type_ast.argtypes))
                     arg_types = [a if a is not None else AnyType(TypeOfAny.unannotated)
@@ -361,9 +361,9 @@ class ASTConverter(ast3.NodeTransformer):
                 if self.in_class() and len(arg_types) < len(args):
                     arg_types.insert(0, AnyType(TypeOfAny.special_form))
             except SyntaxError:
-                self.fail(TYPE_COMMENT_SYNTAX_ERROR, n.lineno, n.col_offset)
+                self.fail(errorcode.SYNTAX_ERROR_TYPE_COMMENT(), n.lineno, n.col_offset)
                 if n.type_comment and n.type_comment[0] != "(":
-                    self.note('Suggestion: wrap argument types in parentheses',
+                    self.note(errorcode.MSG_SHOW('Suggestion: wrap argument types in parentheses'),
                               n.lineno, n.col_offset)
                 arg_types = [AnyType(TypeOfAny.from_error)] * len(args)
                 return_type = AnyType(TypeOfAny.from_error)
@@ -378,12 +378,13 @@ class ASTConverter(ast3.NodeTransformer):
         func_type = None
         if any(arg_types) or return_type:
             if len(arg_types) != 1 and any(isinstance(t, EllipsisType) for t in arg_types):
-                self.fail("Ellipses cannot accompany other argument types "
-                          "in function type signature.", n.lineno, 0)
+                self.fail(
+                    errorcode.ELLIPSES_CANNOT_ACC_OTHER_ARG_TYPES_IN_FUNCTION_TYPE_SIGNATURE(),
+                    n.lineno, 0)
             elif len(arg_types) > len(arg_kinds):
-                self.fail('Type signature has too many arguments', n.lineno, 0)
+                self.fail(errorcode.TYPE_SIGNATURE_HAS_TOO_MANY_ARGUMENTS(), n.lineno, 0)
             elif len(arg_types) < len(arg_kinds):
-                self.fail('Type signature has too few arguments', n.lineno, 0)
+                self.fail(errorcode.TYPE_SIGNATURE_HAS_TOO_FEW_ARGUMENTS(), n.lineno, 0)
             else:
                 func_type = CallableType([a if a is not None else
                                           AnyType(TypeOfAny.unannotated) for a in arg_types],
@@ -434,7 +435,7 @@ class ASTConverter(ast3.NodeTransformer):
                 arg_type = None
             else:
                 if arg.annotation is not None and arg.type_comment is not None:
-                    self.fail(messages.DUPLICATE_TYPE_SIGNATURES, arg.lineno, arg.col_offset)
+                    self.fail(errorcode.DUPLICATE_TYPE_SIGNATURES(), arg.lineno, arg.col_offset)
                 arg_type = None
                 if arg.annotation is not None:
                     arg_type = TypeConverter(self.errors, line=arg.lineno).visit(arg.annotation)
@@ -473,8 +474,8 @@ class ASTConverter(ast3.NodeTransformer):
             new_args.append(make_argument(args.kwarg, None, ARG_STAR2))
             names.append(args.kwarg)
 
-        def fail_arg(msg: str, arg: ast3.arg) -> None:
-            self.fail(msg, arg.lineno, arg.col_offset)
+        def fail_arg(error_code: ErrorCode, arg: ast3.arg) -> None:
+            self.fail(error_code, arg.lineno, arg.col_offset)
 
         check_arg_names([name.arg for name in names], names, fail_arg)
 
@@ -1020,13 +1021,13 @@ class TypeConverter(ast3.NodeTransformer):
             return None
         return self.node_stack[-2]
 
-    def fail(self, msg: str, line: int, column: int) -> None:
+    def fail(self, error_code: ErrorCode, line: int, column: int) -> None:
         if self.errors:
-            self.errors.report(line, column, msg, blocker=True)
+            self.errors.reportErrorCode(error_code, line, column, blocker=True)
 
-    def note(self, msg: str, line: int, column: int) -> None:
+    def note(self, error_code: ErrorCode, line: int, column: int) -> None:
         if self.errors:
-            self.errors.report(line, column, msg, severity='note')
+            self.errors.reportErrorCode(error_code, line, column)
 
     def visit_raw_str(self, s: str) -> Type:
         # An escape hatch that allows the AST walker in fastparse2 to
@@ -1036,7 +1037,8 @@ class TypeConverter(ast3.NodeTransformer):
                 AnyType(TypeOfAny.from_error))
 
     def generic_visit(self, node: ast3.AST) -> Type:  # type: ignore
-        self.fail(TYPE_COMMENT_AST_ERROR, self.line, getattr(node, 'col_offset', -1))
+        self.fail(errorcode.TYPE_COMMENT_OR_ANNOTATION_AST_ERROR(),
+            self.line, getattr(node, 'col_offset', -1))
         return AnyType(TypeOfAny.from_error)
 
     def translate_expr_list(self, l: Sequence[ast3.expr]) -> List[Type]:
@@ -1048,7 +1050,7 @@ class TypeConverter(ast3.NodeTransformer):
         constructor = stringify_name(f)
 
         if not isinstance(self.parent(), ast3.List):
-            self.fail(TYPE_COMMENT_AST_ERROR, self.line, e.col_offset)
+            self.fail(errorcode.TYPE_COMMENT_OR_ANNOTATION_AST_ERROR(), self.line, e.col_offset)
             if constructor:
                 self.note("Suggestion: use {}[...] instead of {}(...)".format(
                     constructor, constructor),
@@ -1116,7 +1118,8 @@ class TypeConverter(ast3.NodeTransformer):
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, n: ast3.Subscript) -> Type:
         if not isinstance(n.slice, ast3.Index):
-            self.fail(TYPE_COMMENT_SYNTAX_ERROR, self.line, getattr(n, 'col_offset', -1))
+            self.fail(
+                errorcode.SYNTAX_ERROR_TYPE_COMMENT(), self.line, getattr(n, 'col_offset', -1))
             return AnyType(TypeOfAny.from_error)
 
         empty_tuple_index = False
@@ -1132,7 +1135,8 @@ class TypeConverter(ast3.NodeTransformer):
             return UnboundType(value.name, params, line=self.line,
                                empty_tuple_index=empty_tuple_index)
         else:
-            self.fail(TYPE_COMMENT_AST_ERROR, self.line, getattr(n, 'col_offset', -1))
+            self.fail(errorcode.TYPE_COMMENT_OR_ANNOTATION_AST_ERROR(),
+                self.line, getattr(n, 'col_offset', -1))
             return AnyType(TypeOfAny.from_error)
 
     def visit_Tuple(self, n: ast3.Tuple) -> Type:
@@ -1146,7 +1150,8 @@ class TypeConverter(ast3.NodeTransformer):
         if isinstance(before_dot, UnboundType) and not before_dot.args:
             return UnboundType("{}.{}".format(before_dot.name, n.attr), line=self.line)
         else:
-            self.fail(TYPE_COMMENT_AST_ERROR, self.line, getattr(n, 'col_offset', -1))
+            self.fail(errorcode.TYPE_COMMENT_OR_ANNOTATION_AST_ERROR(),
+                self.line, getattr(n, 'col_offset', -1))
             return AnyType(TypeOfAny.from_error)
 
     # Ellipsis

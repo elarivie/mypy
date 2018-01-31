@@ -1,6 +1,8 @@
 from typing import Optional
 from typing import Tuple
 
+from mypy.nodes import nongen_builtins
+
 
 class ErrorCode():
 
@@ -103,3 +105,197 @@ def NO_PARENT_MODULE_CANNOT_PERFORM_RELATIVE_IMPORT() -> ErrorCode:
 
 def DUPLICATE_MODULE_NAME(name: str) -> ErrorCode:
     return ErrorCode(18, "error", ("Duplicate module named '%s'" % name))
+
+
+def SYNTAX_ERROR(message: str) -> ErrorCode:
+    return ErrorCode(19, "error", message)
+
+
+def SYNTAX_ERROR_TYPE_COMMENT() -> ErrorCode:
+    return ErrorCode(20, "error", 'syntax error in type comment')
+
+
+def DUPLICATE_TYPE_SIGNATURES() -> ErrorCode:
+    return ErrorCode(21, "error", "Function has duplicate type signatures")
+
+
+def TYPE_COMMENT_OR_ANNOTATION_AST_ERROR() -> ErrorCode:
+    return ErrorCode(22, "error", "invalid type comment or annotation")
+
+
+def TYPE_COMMENT_AST_ERROR() -> ErrorCode:
+    return ErrorCode(23, "error", "invalid type comment")
+
+
+def ELLIPSES_CANNOT_ACC_OTHER_ARG_TYPES_IN_FUNCTION_TYPE_SIGNATURE() -> ErrorCode:
+    return ErrorCode(24, "error", "Ellipses cannot accompany other argument types "
+              "in function type signature.")
+
+
+def TYPE_SIGNATURE_HAS_TOO_MANY_ARGUMENTS() -> ErrorCode:
+    return ErrorCode(25, "error", 'Type signature has too many arguments')
+
+
+def TYPE_SIGNATURE_HAS_TOO_FEW_ARGUMENTS() -> ErrorCode:
+    return ErrorCode(25, "error", 'Type signature has too few arguments')
+
+
+def DUPLICATE_ARGUMENT(name: str, description: str) -> ErrorCode:
+    return ErrorCode(26, "error", "Duplicate argument '{}' in {}".format(name, description))
+
+
+def INTERNAL_ERROR_NODE_IS_NONE(kind: int) -> ErrorCode:
+    return ErrorCode(27, "error", 'Internal error (node is None, kind={})'.format(kind))
+
+
+def NO_SUBSCRIPT_BUILTIN_ALIAS(name: str, propose_alt: bool = True) -> ErrorCode:
+    msg = '"{}" is not subscriptable'.format(name.split('.')[-1])
+    replacement = nongen_builtins[name]
+    if replacement and propose_alt:
+        msg += ', use "{}" instead'.format(replacement)
+    return ErrorCode(28, "error", msg)
+
+
+def METHOD_MUST_HAVE_AT_LEAST_ONE_ARGUMENT() -> ErrorCode:
+    return ErrorCode(29, "error", 'Method must have at least one argument')
+
+
+def IMPLEMENTATION_FOR_AN_OVERLOADED_FUNCTION_IS_NOT_ALLOWED_IN_STUB() -> ErrorCode:
+    return ErrorCode(30, "error", "An implementation for an overloaded function "
+                     "is not allowed in a stub file")
+
+
+def IMPLEMENTATION_FOR_AN_OVERLOADED_FUNCTION_MUST_COME_LAST() -> ErrorCode:
+    return ErrorCode(31, "error", "The implementation for an overloaded function "
+                    "must come last")
+
+
+def OVERLOADED_FUNCTION_OUTSIDE_STUB_MUST_HAVE_AN_IMPLEMENTATION() -> ErrorCode:
+    return ErrorCode(32, "error", "An overloaded function outside a stub file "
+                     "must have an implementation")
+
+
+def DECORATED_PROPERTY_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(33, "error", "Decorated property not supported")
+
+
+def CANNOT_OVERWRITE_NAMEDTUPLE_ATTRIBUTE(prohibited: str) -> ErrorCode:
+    return ErrorCode(34, "error", 'Cannot overwrite NamedTuple attribute "{}"'.format(prohibited))
+
+
+def ATRUNTIME_CAN_ONLY_BE_USED_WITH_PROTOCOL_CLASS() -> ErrorCode:
+    return ErrorCode(35, "error", '@runtime can only be used with protocol classes')
+
+
+def ONLY_SINGLE_OR_GENERIC_CAN_BE_IN_BASES() -> ErrorCode:
+    return ErrorCode(36, "error", 'Only single Generic[...] or Protocol[...] can be in bases')
+
+
+def DUPLICATE_TYPE_VARIABLES_IN_GENERIC_OR_PROTOCOL() -> ErrorCode:
+    return ErrorCode(37, "error", "Duplicate type variables in Generic[...] or Protocol[...]")
+
+
+def SHOULD_LIST_ALL_TYPE_VARIABLE_WITH_GENERIC_OR_PROTOCOL() -> ErrorCode:
+    return ErrorCode(38, "error", "If Generic[...] or Protocol[...] is present"
+              " it should list all type variables")
+
+
+def FREE_TYPE_VARIABLE_EXPECTED(name: str) -> ErrorCode:
+    return ErrorCode(39, "error", 'Free type variable expected in %s[...]' % name)
+
+
+def NAMEDTUP_CLASS_ERROR() -> ErrorCode:
+    return ErrorCode(40, "error", 'Invalid statement in NamedTuple definition; '
+                     'expected "field_name: field_type [= default]"')
+
+
+def NAMEDTUP_FIELD_NAME_CANNOT_START_WITH_AN_UNDERSCORE(name: str) -> ErrorCode:
+    return ErrorCode(41, "error", 'NamedTuple field name cannot start with an underscore: {}'
+              .format(name))
+
+
+def NAMEDTUP_DEFAULT_FIELD_CANNOT_FOLLOW_NONDEFAULT_FIELD() -> ErrorCode:
+    return ErrorCode(42, "error", 'Non-default NamedTuple fields cannot follow default fields')
+
+
+def NAMEDTUP_ONLY_PYTHON36() -> ErrorCode:
+    return ErrorCode(43, "error", 'NamedTuple class syntax is only supported in Python 3.6')
+
+
+def NAMEDTUP_SHOULD_BE_SINGLE_BASE() -> ErrorCode:
+    return ErrorCode(44, "error", 'NamedTuple should be a single base')
+
+
+def INVALID_BASE_CLASS() -> ErrorCode:
+    return ErrorCode(45, "error", "Invalid base class")
+
+
+def X_IS_NOT_A_VALID_BASE_CLASS(name: str) -> ErrorCode:
+    return ErrorCode(46, "error", "'%s' is not a valid base class" %
+              name)
+
+
+def CLASS_HAS_TWO_INCOMPATIBLE_BASES_DERIVED_FROM_TUPLE() -> ErrorCode:
+    return ErrorCode(47, "error", "Class has two incompatible bases derived from tuple")
+
+
+def CANNOT_SUBCLASS_NEWTYPE() -> ErrorCode:
+    return ErrorCode(48, "error", "Cannot subclass NewType")
+
+
+def CANNOT_SUBCLASS_VALUE_OF_TYPE_ANY() -> ErrorCode:
+    return ErrorCode(49, "error", "Class cannot subclass value of type 'Any'")
+
+
+def CANNOT_SUBCLASS_X_HAS_TYPE_ANY(name: str) -> ErrorCode:
+    return ErrorCode(50, "error", "Class cannot subclass '{}' (has type 'Any')".format(name))
+
+
+def ENUM_CLASS_CANNOT_BE_GENERIC() -> ErrorCode:
+    return ErrorCode(51, "error", "Enum class cannot be generic")
+
+
+def CANNOT_DETERMINE_CONSISTENT_MRO(name: str) -> ErrorCode:
+    return ErrorCode(52, "error", "Cannot determine consistent method resolution order "
+         '(MRO) for "%s"' % name)
+
+
+def METACLASS_DEFINED_AS_INNER_CLASS_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(53, "error", "Metaclasses defined as inner classes are not supported")
+
+
+def MULTIPLE_METACLASS_DEFINITION() -> ErrorCode:
+    return ErrorCode(54, "error", "Multiple metaclass definitions")
+
+
+def CYCLE_IN_INHERITANCE_HIERARCHY() -> ErrorCode:
+    return ErrorCode(55, "error", 'Cycle in inheritance hierarchy')
+
+
+def DUPLICATE_BASE_CLASS(name: str) -> ErrorCode:
+    return ErrorCode(56, "error", 'Duplicate base class "%s"' % name)
+
+
+def DYNAMIC_METACLASS_NOT_SUPPORTED(name: str) -> ErrorCode:
+    return ErrorCode(57, "error", "Dynamic metaclass not supported for '%s'" % name)
+
+
+def INVALID_METACLASS(metaclass_name: str) -> ErrorCode:
+    return ErrorCode(58, "error", "Invalid metaclass '%s'" % metaclass_name)
+
+
+def METACLASS_NOT_INHERITING_FROM_TYPE_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(59, "error", "Metaclasses not inheriting from 'type' are not supported")
+
+
+def INCONSISTENT_METACLASS_STRUCTURE(name: str) -> ErrorCode:
+    return ErrorCode(60, "error", "Inconsistent metaclass structure for '%s'" % name)
+
+
+def ALL_BASE_OF_NEW_TYPED_DICT_MUST_BE_TYPED_DICT_TYPE() -> ErrorCode:
+    return ErrorCode(61, "error", "All bases of a new TypedDict must be TypedDict types")
+
+
+def CANNOT_OVERWRITE_TYPEDDICT_FIELD_WHIlE_MERGING(key: str) -> ErrorCode:
+    return ErrorCode(62, "error", 'Cannot overwrite TypedDict field "{}" while merging'
+              .format(key))

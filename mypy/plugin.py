@@ -12,12 +12,15 @@ from mypy.types import (
 from mypy.messages import MessageBuilder
 from mypy.options import Options
 
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
+
 
 class TypeAnalyzerPluginInterface:
     """Interface for accessing semantic analyzer functionality in plugins."""
 
     @abstractmethod
-    def fail(self, msg: str, ctx: Context) -> None:
+    def fail(self, error_code: ErrorCode, ctx: Context) -> None:
         raise NotImplementedError
 
     @abstractmethod

@@ -11,6 +11,9 @@ import mypy.strconv
 from mypy.util import short_type
 from mypy.visitor import NodeVisitor, StatementVisitor, ExpressionVisitor
 
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
+
 
 class Context:
     """Base type for objects that are valid as error message locations."""
@@ -2599,11 +2602,12 @@ def check_arg_kinds(arg_kinds: List[int], nodes: List[T], fail: Callable[[str, T
             is_kw_arg = True
 
 
-def check_arg_names(names: Sequence[Optional[str]], nodes: List[T], fail: Callable[[str, T], None],
+def check_arg_names(names: Sequence[Optional[str]],
+                    nodes: List[T], fail: Callable[[ErrorCode, T], None],
                     description: str = 'function definition') -> None:
     seen_names = set()  # type: Set[Optional[str]]
     for name, node in zip(names, nodes):
         if name is not None and name in seen_names:
-            fail("Duplicate argument '{}' in {}".format(name, description), node)
+            fail(errorcode.DUPLICATE_ARGUMENT(name, description), node)
             break
         seen_names.add(name)

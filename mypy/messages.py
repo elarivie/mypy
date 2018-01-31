@@ -91,7 +91,6 @@ TYPEDDICT_KEY_MUST_BE_STRING_LITERAL = \
     'Expected TypedDict key to be string literal'
 MALFORMED_ASSERT = 'Assertion is always true, perhaps remove parentheses?'
 NON_BOOLEAN_IN_CONDITIONAL = 'Condition must be a boolean'
-DUPLICATE_TYPE_SIGNATURES = 'Function has duplicate type signatures'
 GENERIC_INSTANCE_VAR_CLASS_ACCESS = 'Access to generic instance variables via class is ambiguous'
 CANNOT_ISINSTANCE_TYPEDDICT = 'Cannot use isinstance() with a TypedDict type'
 CANNOT_ISINSTANCE_NEWTYPE = 'Cannot use isinstance() with a NewType type'

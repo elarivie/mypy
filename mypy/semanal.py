@@ -73,7 +73,7 @@ from mypy.types import (
 )
 from mypy.nodes import implicit_module_attrs
 from mypy.typeanal import (
-    TypeAnalyser, analyze_type_alias, no_subscript_builtin_alias,
+    TypeAnalyser, analyze_type_alias,
     TypeVariableQuery, TypeVarList, remove_dups, has_any_from_unimported_type,
     check_for_explicit_any
 )
@@ -85,6 +85,9 @@ from mypy.plugin import Plugin, ClassDefContext, SemanticAnalyzerPluginInterface
 from mypy import join
 from mypy.util import get_prefix, correct_relative_import
 from mypy.semanal_shared import PRIORITY_FALLBACKS
+
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
 
 
 T = TypeVar('T')
@@ -426,7 +429,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         functype = func.type
         if not func.is_static:
             if not func.arguments:
-                self.fail('Method must have at least one argument', func)
+                self.fail(errorcode.METHOD_MUST_HAVE_AT_LEAST_ONE_ARGUMENT(), func)
             elif isinstance(functype, CallableType):
                 self_type = functype.arg_types[0]
                 if isinstance(self_type, AnyType):
@@ -521,11 +524,13 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     # Some of them were overloads, but not all.
                     for idx in non_overload_indexes:
                         if self.is_stub_file:
-                            self.fail("An implementation for an overloaded function "
-                                      "is not allowed in a stub file", defn.items[idx])
+                            self.fail(errorcode.
+                                IMPLEMENTATION_FOR_AN_OVERLOADED_FUNCTION_IS_NOT_ALLOWED_IN_STUB(),
+                                defn.items[idx])
                         else:
-                            self.fail("The implementation for an overloaded function "
-                                      "must come last", defn.items[idx])
+                            self.fail(errorcode.
+                                IMPLEMENTATION_FOR_AN_OVERLOADED_FUNCTION_MUST_COME_LAST(),
+                                defn.items[idx])
                 else:
                     for idx in non_overload_indexes[1:]:
                         self.name_already_defined(defn.name(), defn.items[idx])
@@ -542,7 +547,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             elif not self.is_stub_file and not non_overload_indexes:
                 if not (self.type and not self.is_func_scope() and self.type.is_protocol):
                     self.fail(
-                        "An overloaded function outside a stub file must have an implementation",
+                        errorcode.OVERLOADED_FUNCTION_OUTSIDE_STUB_MUST_HAVE_AN_IMPLEMENTATION(),
                         defn)
                 else:
                     for item in defn.items:
@@ -585,7 +590,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                         # Get abstractness from the original definition.
                         item.func.is_abstract = first_item.func.is_abstract
             else:
-                self.fail("Decorated property not supported", item)
+                self.fail(errorcode.DECORATED_PROPERTY_NOT_SUPPORTED(), item)
             if isinstance(item, Decorator):
                 item.func.accept(self)
 
@@ -651,13 +656,13 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         sig = fdef.type
         assert isinstance(sig, CallableType)
         if len(sig.arg_types) < len(fdef.arguments):
-            self.fail('Type signature has too few arguments', fdef)
+            self.fail(errorcode.TYPE_SIGNATURE_HAS_TOO_FEW_ARGUMENTS(), fdef)
             # Add dummy Any arguments to prevent crashes later.
             num_extra_anys = len(fdef.arguments) - len(sig.arg_types)
             extra_anys = [AnyType(TypeOfAny.from_error)] * num_extra_anys
             sig.arg_types.extend(extra_anys)
         elif len(sig.arg_types) > len(fdef.arguments):
-            self.fail('Type signature has too many arguments', fdef, blocker=True)
+            self.fail(errorcode.TYPE_SIGNATURE_HAS_TOO_MANY_ARGUMENTS(), fdef, blocker=True)
 
     def visit_class_def(self, defn: ClassDef) -> None:
         with self.analyze_class_body(defn) as should_continue:
@@ -697,7 +702,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                             continue
                         ctx = named_tuple_info.names[prohibited].node
                         assert ctx is not None
-                        self.fail('Cannot overwrite NamedTuple attribute "{}"'.format(prohibited),
+                        self.fail(errorcode.CANNOT_OVERWRITE_NAMEDTUPLE_ATTRIBUTE(prohibited),
                                   ctx)
 
                 # Restore the names in the original symbol table. This ensures that the symbol
@@ -787,7 +792,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             if defn.info.is_protocol:
                 defn.info.runtime_protocol = True
             else:
-                self.fail('@runtime can only be used with protocol classes', defn)
+                self.fail(errorcode.ATRUNTIME_CAN_ONLY_BE_USED_WITH_PROTOCOL_CLASS(), defn)
 
     def calculate_abstract_status(self, typ: TypeInfo) -> None:
         """Calculate abstract status of a class.
@@ -877,7 +882,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             tvars = self.analyze_typevar_declaration(base)
             if tvars is not None:
                 if declared_tvars:
-                    self.fail('Only single Generic[...] or Protocol[...] can be in bases', defn)
+                    self.fail(errorcode.ONLY_SINGLE_OR_GENERIC_CAN_BE_IN_BASES(), defn)
                 removed.append(i)
                 declared_tvars.extend(tvars)
             if isinstance(base, UnboundType):
@@ -892,11 +897,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         all_tvars = self.get_all_bases_tvars(defn, removed)
         if declared_tvars:
             if len(remove_dups(declared_tvars)) < len(declared_tvars):
-                self.fail("Duplicate type variables in Generic[...] or Protocol[...]", defn)
+                self.fail(errorcode.DUPLICATE_TYPE_VARIABLES_IN_GENERIC_OR_PROTOCOL(), defn)
             declared_tvars = remove_dups(declared_tvars)
             if not set(all_tvars).issubset(set(declared_tvars)):
-                self.fail("If Generic[...] or Protocol[...] is present"
-                          " it should list all type variables", defn)
+                self.fail(errorcode.SHOULD_LIST_ALL_TYPE_VARIABLE_WITH_GENERIC_OR_PROTOCOL(),
+                    defn)
                 # In case of error, Generic tvars will go first
                 declared_tvars = remove_dups(declared_tvars + all_tvars)
         else:
@@ -929,8 +934,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 if tvar:
                     tvars.append(tvar)
                 else:
-                    self.fail('Free type variable expected in %s[...]' %
-                              sym.node.name(), t)
+                    self.fail(errorcode.FREE_TYPE_VARIABLE_EXPECTED(sym.node.name()), t)
             return tvars
         return None
 
@@ -984,13 +988,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def check_namedtuple_classdef(
             self, defn: ClassDef) -> Tuple[List[str], List[Type], Dict[str, Expression]]:
-        NAMEDTUP_CLASS_ERROR = ('Invalid statement in NamedTuple definition; '
-                                'expected "field_name: field_type [= default]"')
         if self.options.python_version < (3, 6):
-            self.fail('NamedTuple class syntax is only supported in Python 3.6', defn)
+            self.fail(errorcode.NAMEDTUP_ONLY_PYTHON36(), defn)
             return [], [], {}
         if len(defn.base_type_exprs) > 1:
-            self.fail('NamedTuple should be a single base', defn)
+            self.fail(errorcode.NAMEDTUP_SHOULD_BE_SINGLE_BASE(), defn)
         items = []  # type: List[str]
         types = []  # type: List[Type]
         default_items = {}  # type: Dict[str, Expression]
@@ -1008,10 +1010,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 if (isinstance(stmt, ExpressionStmt) and
                         isinstance(stmt.expr, StrExpr)):
                     continue
-                self.fail(NAMEDTUP_CLASS_ERROR, stmt)
+                self.fail(errorcode.NAMEDTUP_CLASS_ERROR(), stmt)
             elif len(stmt.lvalues) > 1 or not isinstance(stmt.lvalues[0], NameExpr):
                 # An assignment, but an invalid one.
-                self.fail(NAMEDTUP_CLASS_ERROR, stmt)
+                self.fail(errorcode.NAMEDTUP_CLASS_ERROR(), stmt)
             else:
                 # Append name and type in this case...
                 name = stmt.lvalues[0].name
@@ -1021,15 +1023,16 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                              else self.anal_type(stmt.type))
                 # ...despite possible minor failures that allow further analyzis.
                 if name.startswith('_'):
-                    self.fail('NamedTuple field name cannot start with an underscore: {}'
-                              .format(name), stmt)
+                    self.fail(errorcode.NAMEDTUP_FIELD_NAME_CANNOT_START_WITH_AN_UNDERSCORE(name),
+                        stmt)
                 if stmt.type is None or hasattr(stmt, 'new_syntax') and not stmt.new_syntax:
-                    self.fail(NAMEDTUP_CLASS_ERROR, stmt)
+                    self.fail(errorcode.NAMEDTUP_CLASS_ERROR(), stmt)
                 elif isinstance(stmt.rvalue, TempNode):
                     # x: int assigns rvalue to TempNode(AnyType())
                     if default_items:
-                        self.fail('Non-default NamedTuple fields cannot follow default fields',
-                                  stmt)
+                        self.fail(
+                            errorcode.NAMEDTUP_DEFAULT_FIELD_CANNOT_FOLLOW_NONDEFAULT_FIELD(),
+                            stmt)
                 else:
                     default_items[name] = stmt.rvalue
         return items, types, default_items
@@ -1068,13 +1071,14 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             try:
                 base = self.expr_to_analyzed_type(base_expr)
             except TypeTranslationError:
-                self.fail('Invalid base class', base_expr)
+                self.fail(errorcode.INVALID_BASE_CLASS(), base_expr)
                 info.fallback_to_any = True
                 continue
 
             if isinstance(base, TupleType):
                 if info.tuple_type:
-                    self.fail("Class has two incompatible bases derived from tuple", defn)
+                    self.fail(errorcode.CLASS_HAS_TWO_INCOMPATIBLE_BASES_DERIVED_FROM_TUPLE(),
+                        defn)
                     defn.has_incompatible_baseclass = True
                 info.tuple_type = base
                 base_types.append(base.fallback)
@@ -1084,18 +1088,18 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     defn.analyzed.column = defn.column
             elif isinstance(base, Instance):
                 if base.type.is_newtype:
-                    self.fail("Cannot subclass NewType", defn)
+                    self.fail(errorcode.CANNOT_SUBCLASS_NEWTYPE(), defn)
                 base_types.append(base)
             elif isinstance(base, AnyType):
                 if self.options.disallow_subclassing_any:
                     if isinstance(base_expr, (NameExpr, MemberExpr)):
-                        msg = "Class cannot subclass '{}' (has type 'Any')".format(base_expr.name)
+                        error_code = errorcode.CANNOT_SUBCLASS_X_HAS_TYPE_ANY(base_expr.name)
                     else:
-                        msg = "Class cannot subclass value of type 'Any'"
-                    self.fail(msg, base_expr)
+                        error_code = errorcode.CANNOT_SUBCLASS_VALUE_OF_TYPE_ANY()
+                    self.fail(error_code, base_expr)
                 info.fallback_to_any = True
             else:
-                self.fail('Invalid base class', base_expr)
+                self.fail(errorcode.INVALID_BASE_CLASS(), base_expr)
                 info.fallback_to_any = True
             if self.options.disallow_any_unimported and has_any_from_unimported_type(base):
                 if isinstance(base_expr, (NameExpr, MemberExpr)):
@@ -1125,7 +1129,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if info.mro and info.mro[-1].fullname() != 'builtins.object':
             info.mro.append(self.object_type().type)
         if defn.info.is_enum and defn.type_vars:
-            self.fail("Enum class cannot be generic", defn)
+            self.fail(errorcode.ENUM_CLASS_CANNOT_BE_GENERIC(), defn)
 
     def update_metaclass(self, defn: ClassDef) -> None:
         """Lookup for special metaclass declarations, and update defn fields accordingly.
@@ -1140,7 +1144,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if self.options.python_version[0] == 2:
             for body_node in defn.defs.body:
                 if isinstance(body_node, ClassDef) and body_node.name == "__metaclass__":
-                    self.fail("Metaclasses defined as inner classes are not supported", body_node)
+                    self.fail(errorcode.METACLASS_DEFINED_AS_INNER_CLASS_NOT_SUPPORTED(),
+                        body_node)
                     break
                 elif isinstance(body_node, AssignmentStmt) and len(body_node.lvalues) == 1:
                     lvalue = body_node.lvalues[0]
@@ -1174,7 +1179,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if len(metas) == 0:
             return
         if len(metas) > 1:
-            self.fail("Multiple metaclass definitions", defn)
+            self.fail(errorcode.MULTIPLE_METACLASS_DEFINITION(), defn)
             return
         defn.metaclass = metas.pop()
 
@@ -1197,16 +1202,16 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         for base in info.bases:
             baseinfo = base.type
             if self.is_base_class(info, baseinfo):
-                self.fail('Cycle in inheritance hierarchy', defn, blocker=True)
+                self.fail(errorcode.CYCLE_IN_INHERITANCE_HIERARCHY(), defn, blocker=True)
                 # Clear bases to forcefully get rid of the cycle.
                 info.bases = []
             if baseinfo.fullname() == 'builtins.bool':
-                self.fail("'%s' is not a valid base class" %
-                          baseinfo.name(), defn, blocker=True)
+                self.fail(errorcode.X_IS_NOT_A_VALID_BASE_CLASS(baseinfo.name()),
+                    defn, blocker=True)
                 return False
         dup = find_duplicate(info.direct_base_classes())
         if dup:
-            self.fail('Duplicate base class "%s"' % dup.name(), defn, blocker=True)
+            self.fail(errorcode.DUPLICATE_BASE_CLASS(dup.name()), defn, blocker=True)
             return False
         return True
 
@@ -1233,7 +1238,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             elif isinstance(defn.metaclass, MemberExpr):
                 metaclass_name = get_member_expr_fullname(defn.metaclass)
             if metaclass_name is None:
-                self.fail("Dynamic metaclass not supported for '%s'" % defn.name, defn.metaclass)
+                self.fail(errorcode.DYNAMIC_METACLASS_NOT_SUPPORTED(defn.name), defn.metaclass)
                 return
             sym = self.lookup_qualified(metaclass_name, defn.metaclass)
             if sym is None:
@@ -1247,10 +1252,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 #       attributes, similar to an 'Any' base class.
                 return
             if not isinstance(sym.node, TypeInfo) or sym.node.tuple_type is not None:
-                self.fail("Invalid metaclass '%s'" % metaclass_name, defn.metaclass)
+                self.fail(errorcode.INVALID_METACLASS(metaclass_name), defn.metaclass)
                 return
             if not sym.node.is_metaclass():
-                self.fail("Metaclasses not inheriting from 'type' are not supported",
+                self.fail(errorcode.METACLASS_NOT_INHERITING_FROM_TYPE_NOT_SUPPORTED(),
                           defn.metaclass)
                 return
             inst = fill_typevars(sym.node)
@@ -1261,7 +1266,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             # Inconsistency may happen due to multiple baseclasses even in classes that
             # do not declare explicit metaclass, but it's harder to catch at this stage
             if defn.metaclass is not None:
-                self.fail("Inconsistent metaclass structure for '%s'" % defn.name, defn)
+                self.fail(errorcode.INCONSISTENT_METACLASS_STRUCTURE(defn.name), defn)
 
     def object_type(self) -> Instance:
         return self.named_type('__builtins__.object')
@@ -1334,7 +1339,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 if any(not isinstance(expr, RefExpr) or
                        expr.fullname != 'mypy_extensions.TypedDict' and
                        not self.is_typeddict(expr) for expr in defn.base_type_exprs):
-                    self.fail("All bases of a new TypedDict must be TypedDict types", defn)
+                    self.fail(errorcode.ALL_BASE_OF_NEW_TYPED_DICT_MUST_BE_TYPED_DICT_TYPE(), defn)
                 typeddict_bases = list(filter(self.is_typeddict, defn.base_type_exprs))
                 keys = []  # type: List[str]
                 types = []
@@ -1348,8 +1353,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     valid_items = base_items.copy()
                     for key in base_items:
                         if key in keys:
-                            self.fail('Cannot overwrite TypedDict field "{}" while merging'
-                                      .format(key), defn)
+                            self.fail(errorcode.CANNOT_OVERWRITE_TYPEDDICT_FIELD_WHIlE_MERGING(
+                                key), defn)
                             valid_items.pop(key)
                     keys.extend(valid_items.keys())
                     types.extend(valid_items.values())
@@ -3466,7 +3471,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             # list, dict, set are not directly subscriptable
             n = self.lookup_type_node(expr.base)
             if n and not n.normalized and n.fullname in nongen_builtins:
-                self.fail(no_subscript_builtin_alias(n.fullname, propose_alt=False), expr)
+                self.fail(
+                    errorcode.NO_SUBSCRIPT_BUILTIN_ALIAS(n.fullname, propose_alt=False), expr)
         else:
             expr.index.accept(self)
 
@@ -3862,7 +3868,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             extra_msg = ''
         self.fail("Name '{}' already defined{}".format(name, extra_msg), ctx)
 
-    def fail(self, msg: str, ctx: Context, serious: bool = False, *,
+    def fail(self, error_code: ErrorCode, ctx: Context, serious: bool = False, *,
              blocker: bool = False) -> None:
         if (not serious and
                 not self.options.check_untyped_defs and
@@ -3870,18 +3876,18 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 self.function_stack[-1].is_dynamic()):
             return
         # In case it's a bug and we don't really have context
-        assert ctx is not None, msg
-        self.errors.report(ctx.get_line(), ctx.get_column(), msg, blocker=blocker)
+        assert ctx is not None, error_code.message
+        self.errors.reportErrorCode(error_code, ctx.get_line(), ctx.get_column(), blocker=blocker)
 
-    def fail_blocker(self, msg: str, ctx: Context) -> None:
-        self.fail(msg, ctx, blocker=True)
+    def fail_blocker(self, error_code: ErrorCode, ctx: Context) -> None:
+        self.fail(error_code, ctx, blocker=True)
 
-    def note(self, msg: str, ctx: Context) -> None:
+    def note(self, error_code: ErrorCode, ctx: Context) -> None:
         if (not self.options.check_untyped_defs and
                 self.function_stack and
                 self.function_stack[-1].is_dynamic()):
             return
-        self.errors.report(ctx.get_line(), ctx.get_column(), msg, severity='note')
+        self.errors.reportErrorCode(error_code, ctx.get_line(), ctx.get_column())
 
     def undefined_name_extra_info(self, fullname: str) -> Optional[str]:
         if fullname in obsolete_name_mapping:
@@ -3928,12 +3934,11 @@ def refers_to_class_or_function(node: Expression) -> bool:
             isinstance(node.node, (TypeInfo, FuncDef, OverloadedFuncDef)))
 
 
-def calculate_class_mro(defn: ClassDef, fail: Callable[[str, Context], None]) -> None:
+def calculate_class_mro(defn: ClassDef, fail: Callable[[ErrorCode, Context], None]) -> None:
     try:
         defn.info.calculate_mro()
     except MroError:
-        fail("Cannot determine consistent method resolution order "
-             '(MRO) for "%s"' % defn.name, defn)
+        fail(errorcode.CANNOT_DETERMINE_CONSISTENT_MRO(), defn)
         defn.info.mro = []
 
 
