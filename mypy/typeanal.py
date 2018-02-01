@@ -79,7 +79,7 @@ def analyze_type_alias(node: Expression,
         # class-referenced type variable as a type alias.  It's easier to catch
         # that one in checkmember.py
         if node.kind == TVAR:
-            fail_func('Type variable "{}" is invalid as target for type alias'.format(
+            fail_func(errorcode.TYPE_VAR_IS_INVALID_AS_TARGET_FOR_TYPE_ALIAS(
                 node.fullname), node)
             return None
         if not (isinstance(node.node, TypeInfo) or
@@ -116,7 +116,7 @@ def analyze_type_alias(node: Expression,
     try:
         type = expr_to_unanalyzed_type(node)
     except TypeTranslationError:
-        fail_func('Invalid type alias', node)
+        fail_func(errorcode.INVALID_TYPE_ALIAS(), node)
         return None
     analyzer = TypeAnalyser(lookup_func, lookup_fqn_func, tvar_scope, fail_func, note_func,
                             plugin, options, is_typeshed_stub, aliasing=True,
@@ -192,12 +192,11 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
             else:
                 tvar_def = None
             if self.warn_bound_tvar and sym.kind == TVAR and tvar_def is not None:
-                self.fail('Can\'t use bound type variable "{}"'
-                          ' to define generic alias'.format(t.name), t)
+                self.fail(errorcode.CANNOT_USE_BOUND_TYPE_VAR_TO_DEFINE_GENERIC_ALIAS(t.name), t)
                 return AnyType(TypeOfAny.from_error)
             elif sym.kind == TVAR and tvar_def is not None:
                 if len(t.args) > 0:
-                    self.fail('Type variable "{}" used with arguments'.format(
+                    self.fail(errorcode.TYPE_VAR_USED_WITH_ARG(
                         t.name), t)
                 return TypeVarType(tvar_def, t.line)
             elif fullname == 'builtins.None':
@@ -208,7 +207,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                 if len(t.args) == 0 and not t.empty_tuple_index:
                     # Bare 'Tuple' is same as 'tuple'
                     if self.options.disallow_any_generics and not self.is_typeshed_stub:
-                        self.fail(messages.BARE_GENERIC, t)
+                        self.fail(errorcode.BARE_GENERIC(), t)
                     typ = self.named_type('builtins.tuple', line=t.line, column=t.column)
                     typ.from_generic_builtin = True
                     return typ
@@ -235,16 +234,16 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                                        line=t.line, column=t.column)
                     return TypeType(any_type, line=t.line, column=t.column)
                 if len(t.args) != 1:
-                    self.fail('Type[...] must have exactly one type argument', t)
+                    self.fail(errorcode.TYPE_MUST_HAVE_EXACTLY_ONE_TYPE(), t)
                 item = self.anal_type(t.args[0])
                 return TypeType.make_normalized(item, line=t.line)
             elif fullname == 'typing.ClassVar':
                 if self.nesting_level > 0:
-                    self.fail('Invalid type: ClassVar nested inside other type', t)
+                    self.fail(errorcode.INVALID_TYPE_CLASSVAR_NESTED_INSIDE_TYPE(), t)
                 if len(t.args) == 0:
                     return AnyType(TypeOfAny.from_omitted_generics, line=t.line, column=t.column)
                 if len(t.args) != 1:
-                    self.fail('ClassVar[...] must have at most one type argument', t)
+                    self.fail(errorcode.CLASS_VAR_MUST_HAVE_AT_MOST_ONE_TYPE_ARG(), t)
                     return AnyType(TypeOfAny.from_error)
                 item = self.anal_type(t.args[0])
                 if isinstance(item, TypeVarType) or get_type_vars(item):
@@ -297,9 +296,9 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                             self.fail('Unsupported forward reference to "{}"'.format(t.name), t)
                             return AnyType(TypeOfAny.from_error)
                         return ForwardRef(t)
-                    self.fail('Invalid type "{}"'.format(name), t)
+                    self.fail(errorcode.INVALID_TYPE_X(name), t)
                     if self.third_pass and sym.kind == TVAR:
-                        self.note_func("Forward references to type variables are prohibited", t)
+                        self.note_func(errorcode.FORWARD_REERENCES_TO_TYPE_VAR_PROHIBITED(), t)
                 return t
             info = sym.node  # type: TypeInfo
             if len(t.args) > 0 and info.fullname() == 'builtins.tuple':
@@ -318,7 +317,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                     # The class has a Tuple[...] base class so it will be
                     # represented as a tuple type.
                     if t.args:
-                        self.fail('Generic tuple types not supported', t)
+                        self.fail(errorcode.GENERIC_TUPLE_TYPES_NOT_SUPPORTED(), t)
                         return AnyType(TypeOfAny.from_error)
                     return tup.copy_modified(items=self.anal_array(tup.items),
                                              fallback=instance)
@@ -327,7 +326,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                     # The class has a TypedDict[...] base class so it will be
                     # represented as a typeddict type.
                     if t.args:
-                        self.fail('Generic TypedDict types not supported', t)
+                        self.fail(errorcode.GENERIC_TYPEDDICT_TYPES_NOT_SUPPORTED(), t)
                         return AnyType(TypeOfAny.from_error)
                     # Create a named TypedDictType
                     return td.copy_modified(item_types=self.anal_array(list(td.items.values())),
@@ -352,11 +351,11 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
         return t
 
     def visit_type_list(self, t: TypeList) -> Type:
-        self.fail('Invalid type', t)
+        self.fail(errorcode.INVALID_TYPE(), t)
         return AnyType(TypeOfAny.from_error)
 
     def visit_callable_argument(self, t: CallableArgument) -> Type:
-        self.fail('Invalid type', t)
+        self.fail(errorcode.INVALID_TYPE(), t)
         return AnyType(TypeOfAny.from_error)
 
     def visit_instance(self, t: Instance) -> Type:
@@ -384,7 +383,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
         if t.implicit and not self.allow_tuple_literal:
             self.fail('Invalid tuple literal type', t)
             if len(t.items) == 1:
-                self.note_func('Suggestion: Is there a spurious trailing comma?', t)
+                self.note_func(errorcode.SUGGESTION_IS_THERE_SPURIOUS_TRAILING_COMMA(), t)
             return AnyType(TypeOfAny.from_error)
         star_count = sum(1 for item in t.items if isinstance(item, StarType))
         if star_count > 1:

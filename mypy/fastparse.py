@@ -1056,12 +1056,11 @@ class TypeConverter(ast3.NodeTransformer):
         if not isinstance(self.parent(), ast3.List):
             self.fail(errorcode.TYPE_COMMENT_OR_ANNOTATION_AST_ERROR(), self.line, e.col_offset)
             if constructor:
-                self.note("Suggestion: use {}[...] instead of {}(...)".format(
-                    constructor, constructor),
+                self.note(errorcode.ARGS_CONSTRUCTOR_SUGGESTION(constructor),
                     self.line, e.col_offset)
             return AnyType(TypeOfAny.from_error)
         if not constructor:
-            self.fail("Expected arg constructor name", e.lineno, e.col_offset)
+            self.fail(errorcode.EXPECTED_ARGS_CONSTRUCTOR_NAME(), e.lineno, e.col_offset)
 
         name = None  # type: Optional[str]
         default_type = AnyType(TypeOfAny.special_form)
@@ -1074,25 +1073,25 @@ class TypeConverter(ast3.NodeTransformer):
             elif i == 1:
                 name = self._extract_argument_name(arg)
             else:
-                self.fail("Too many arguments for argument constructor",
+                self.fail(errorcode.TOO_MANY_ARGUMENTS_FOR_ARGUMENT_CONSTRUCTOR(),
                           f.lineno, f.col_offset)
         for k in e.keywords:
             value = k.value
             if k.arg == "name":
                 if name is not None:
-                    self.fail('"{}" gets multiple values for keyword argument "name"'.format(
+                    self.fail(errorcode.GETS_MULTIPLE_VALUES_FOR_KEYWORD_ARG_TYPE(
                         constructor), f.lineno, f.col_offset)
                 name = self._extract_argument_name(value)
             elif k.arg == "type":
                 if typ is not default_type:
-                    self.fail('"{}" gets multiple values for keyword argument "type"'.format(
-                        constructor), f.lineno, f.col_offset)
+                    self.fail(errorcode.GETS_MULTIPLE_VALUES_FOR_KEYWORD_ARG_TYPE(constructor),
+                        f.lineno, f.col_offset)
                 converted = self.visit(value)
                 assert converted is not None
                 typ = converted
             else:
                 self.fail(
-                    'Unexpected argument "{}" for argument constructor'.format(k.arg),
+                    errorcode.UNEXPECTED_ARGUMENT_FOR_CONSTRUCTOR_ARG(k.arg),
                     value.lineno, value.col_offset)
         return CallableArgument(typ, name, constructor, e.lineno, e.col_offset)
 
@@ -1104,7 +1103,7 @@ class TypeConverter(ast3.NodeTransformer):
             return n.s.strip()
         elif isinstance(n, ast3.NameConstant) and str(n.value) == 'None':
             return None
-        self.fail('Expected string literal for argument name, got {}'.format(
+        self.fail(errorcode.EXPECTED_STRING_LITERAL_FOR_ARG_NAME(
             type(n).__name__), self.line, 0)
         return None
 

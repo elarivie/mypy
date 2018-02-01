@@ -366,3 +366,93 @@ def A_KWARGS_MUST_BE_LAST_ARGUMENT() -> ErrorCode:
 
 def ONLY_ONE_KWARGS_ARGUMENT() -> ErrorCode:
     return ErrorCode(76, "error", "You may only have one **kwargs argument")
+
+
+def ARGS_CONSTRUCTOR_SUGGESTION(constructor: str) -> ErrorCode:
+    return ErrorCode(77, "note", "Suggestion: use {}[...] instead of {}(...)".format(
+        constructor, constructor))
+
+
+def TOO_MANY_ARGUMENTS_FOR_ARGUMENT_CONSTRUCTOR() -> ErrorCode:
+    return ErrorCode(78, "error", "Too many arguments for argument constructor")
+
+
+def EXPECTED_ARGS_CONSTRUCTOR_NAME() -> ErrorCode:
+    return ErrorCode(79, "error", "Expected arg constructor name")
+
+
+def GETS_MULTIPLE_VALUES_FOR_KEYWORD_ARG_NAME(constructor: str) -> ErrorCode:
+    return ErrorCode(80, "error", '"{}" gets multiple values for keyword argument "name"'.format(
+        constructor))
+
+
+def GETS_MULTIPLE_VALUES_FOR_KEYWORD_ARG_TYPE(constructor: Optional[str]) -> ErrorCode:
+    return ErrorCode(80, "error", '"{}" gets multiple values for keyword argument "type"'.format(
+        constructor))
+
+
+def UNEXPECTED_ARGUMENT_FOR_CONSTRUCTOR_ARG(arg: Optional[str]) -> ErrorCode:
+    return ErrorCode(81, "error", 'Unexpected argument "{}" for argument constructor'.format(arg))
+
+
+def EXPECTED_STRING_LITERAL_FOR_ARG_NAME(name: str) -> ErrorCode:
+    return ErrorCode(82, "error", 'Expected string literal for argument name, got {}'.format(name))
+
+
+def TYPE_VAR_IS_INVALID_AS_TARGET_FOR_TYPE_ALIAS(name: Optional[str]) -> ErrorCode:
+    return ErrorCode(83, "error", 'Type variable "{}" is invalid as target for type alias'.format(
+        name))
+
+
+def INVALID_TYPE_ALIAS() -> ErrorCode:
+    return ErrorCode(84, "error", 'Invalid type alias')
+
+
+def CANNOT_USE_BOUND_TYPE_VAR_TO_DEFINE_GENERIC_ALIAS(name: str) -> ErrorCode:
+    return ErrorCode(85, "error", 'Can\'t use bound type variable "{}"'
+              ' to define generic alias'.format(name))
+
+
+def TYPE_VAR_USED_WITH_ARG(name: str) -> ErrorCode:
+    return ErrorCode(86, "error", 'Type variable "{}" used with arguments'.format(
+        name))
+
+
+def BARE_GENERIC() -> ErrorCode:
+    return ErrorCode(87, "error", 'Missing type parameters for generic type')
+
+
+def SUGGESTION_IS_THERE_SPURIOUS_TRAILING_COMMA() -> ErrorCode:
+    return ErrorCode(89, "note", 'Suggestion: Is there a spurious trailing comma?')
+
+
+def TYPE_MUST_HAVE_EXACTLY_ONE_TYPE() -> ErrorCode:
+    return ErrorCode(90, "error", 'Type[...] must have exactly one type argument')
+
+
+def INVALID_TYPE_CLASSVAR_NESTED_INSIDE_TYPE() -> ErrorCode:
+    return ErrorCode(91, "error", 'Invalid type: ClassVar nested inside other type')
+
+
+def CLASS_VAR_MUST_HAVE_AT_MOST_ONE_TYPE_ARG() -> ErrorCode:
+    return ErrorCode(92, "error", 'ClassVar[...] must have at most one type argument')
+
+
+def FORWARD_REERENCES_TO_TYPE_VAR_PROHIBITED() -> ErrorCode:
+    return ErrorCode(93, "note", "Forward references to type variables are prohibited")
+
+
+def INVALID_TYPE() -> ErrorCode:
+    return ErrorCode(88, "error", 'Invalid type')
+
+
+def INVALID_TYPE_X(name: str) -> ErrorCode:
+    return ErrorCode(94, "error", 'Invalid type "{}"'.format(name))
+
+
+def GENERIC_TUPLE_TYPES_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(95, "error", 'Generic tuple types not supported')
+
+
+def GENERIC_TYPEDDICT_TYPES_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(96, "error", 'Generic TypedDict types not supported')

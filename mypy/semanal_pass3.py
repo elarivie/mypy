@@ -406,7 +406,7 @@ class SemanticAnalyzerPass3(TraverserVisitor):
 
         for t in collect_any_types(typ):
             if t.type_of_any == TypeOfAny.from_omitted_generics:
-                self.fail(messages.BARE_GENERIC, t)
+                self.fail(errorcode.BARE_GENERIC(), t)
 
     def fail(self, msg: str, ctx: Context, *, blocker: bool = False) -> None:
         self.errors.report(ctx.get_line(), ctx.get_column(), msg)
