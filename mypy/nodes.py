@@ -2570,7 +2570,10 @@ deserialize_map = {
 }
 
 
-def check_arg_kinds(arg_kinds: List[int], nodes: List[T], fail: Callable[[str, T], None]) -> None:
+def check_arg_kinds(arg_kinds: List[int],
+                    nodes: List[T],
+                    fail: Callable[[ErrorCode, T],
+                    None]) -> None:
     is_var_arg = False
     is_kw_arg = False
     seen_named = False
@@ -2578,28 +2581,27 @@ def check_arg_kinds(arg_kinds: List[int], nodes: List[T], fail: Callable[[str, T
     for kind, node in zip(arg_kinds, nodes):
         if kind == ARG_POS:
             if is_var_arg or is_kw_arg or seen_named or seen_opt:
-                fail("Required positional args may not appear "
-                     "after default, named or var args",
+                fail(errorcode.REQUIRED_POS_ARGS_MAY_NOT_APPEAR_AFTER_DEFAULT_NAMED_VARARGS(),
                      node)
                 break
         elif kind == ARG_OPT:
             if is_var_arg or is_kw_arg or seen_named:
-                fail("Positional default args may not appear after named or var args", node)
+                fail(errorcode.POS_DEFAULT_ARGS_NOT_AFTER_NAMED_VARARGS(), node)
                 break
             seen_opt = True
         elif kind == ARG_STAR:
             if is_var_arg or is_kw_arg or seen_named:
-                fail("Var args may not appear after named or var args", node)
+                fail(errorcode.VAR_ARGS_NOT_AFTER_NAMED_VARARGS(), node)
                 break
             is_var_arg = True
         elif kind == ARG_NAMED or kind == ARG_NAMED_OPT:
             seen_named = True
             if is_kw_arg:
-                fail("A **kwargs argument must be the last argument", node)
+                fail(errorcode.A_KWARGS_MUST_BE_LAST_ARGUMENT(), node)
                 break
         elif kind == ARG_STAR2:
             if is_kw_arg:
-                fail("You may only have one **kwargs argument", node)
+                fail(errorcode.ONLY_ONE_KWARGS_ARGUMENT(), node)
                 break
             is_kw_arg = True
 

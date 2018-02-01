@@ -1378,10 +1378,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                                  oldfields: Optional[List[str]] = None) -> Tuple[List[str],
                                                                                  List[Type],
                                                                                  Set[str]]:
-        TPDICT_CLASS_ERROR = ('Invalid statement in TypedDict definition; '
-                              'expected "field_name: field_type"')
         if self.options.python_version < (3, 6):
-            self.fail('TypedDict class syntax is only supported in Python 3.6', defn)
+            self.fail(errorcode.TYPEDDICT_CLASS_SYNTAX_IS_ONLY_SUPPORTED_IN_PYTHON36(), defn)
             return [], [], set()
         fields = []  # type: List[str]
         types = []  # type: List[Type]
@@ -1391,18 +1389,18 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 if (not isinstance(stmt, PassStmt) and
                     not (isinstance(stmt, ExpressionStmt) and
                          isinstance(stmt.expr, (EllipsisExpr, StrExpr)))):
-                    self.fail(TPDICT_CLASS_ERROR, stmt)
+                    self.fail(errorcode.TPDICT_CLASS_ERROR(), stmt)
             elif len(stmt.lvalues) > 1 or not isinstance(stmt.lvalues[0], NameExpr):
                 # An assignment, but an invalid one.
-                self.fail(TPDICT_CLASS_ERROR, stmt)
+                self.fail(errorcode.TPDICT_CLASS_ERROR(), stmt)
             else:
                 name = stmt.lvalues[0].name
                 if name in (oldfields or []):
-                    self.fail('Cannot overwrite TypedDict field "{}" while extending'
-                              .format(name), stmt)
+                    self.fail(errorcode.CANNOT_OVERWRITE_TYPEDDICT_FIELD_WHIlE_EXTENDING(
+                        name), stmt)
                     continue
                 if name in fields:
-                    self.fail('Duplicate TypedDict field "{}"'.format(name), stmt)
+                    self.fail(errorcode.DUPLICATE_TYPEDDICT(name), stmt)
                     continue
                 # Append name and type in this case...
                 fields.append(name)
@@ -1411,15 +1409,16 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                              else self.anal_type(stmt.type))
                 # ...despite possible minor failures that allow further analyzis.
                 if stmt.type is None or hasattr(stmt, 'new_syntax') and not stmt.new_syntax:
-                    self.fail(TPDICT_CLASS_ERROR, stmt)
+                    self.fail(errorcode.TPDICT_CLASS_ERROR(), stmt)
                 elif not isinstance(stmt.rvalue, TempNode):
                     # x: int assigns rvalue to TempNode(AnyType())
-                    self.fail('Right hand side values are not supported in TypedDict', stmt)
+                    self.fail(errorcode.RIGHT_HAND_SIDE_VALUES_ARE_NOT_SUPPORTED_IN_TYPEDDICT(),
+                        stmt)
         total = True  # type: Optional[bool]
         if 'total' in defn.keywords:
             total = self.parse_bool(defn.keywords['total'])
             if total is None:
-                self.fail('Value of "total" must be True or False', defn)
+                self.fail(errorcode.VALUE_TOTAL_MUST_BE_TRUE_OR_FALSE(), defn)
                 total = True
         required_keys = set(fields) if total else set()
         return fields, types, required_keys
@@ -1822,9 +1821,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if not lvalue.is_inferred_def:
             # Type aliases can't be re-defined.
             if node and (node.kind == TYPE_ALIAS or isinstance(node.node, TypeInfo)):
-                self.fail('Cannot assign multiple types to name "{}"'
-                          ' without an explicit "Type[...]" annotation'
-                          .format(lvalue.name), lvalue)
+                self.fail(errorcode.CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_EPSILON(
+                    lvalue.name), lvalue)
             return
         check_for_explicit_any(res, self.options, self.is_typeshed_stub_file, self.msg,
                                context=s)
@@ -1922,11 +1920,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             if not add_global:
                 self.analyze_member_lvalue(lval)
             if explicit_type and not self.is_self_member_ref(lval):
-                self.fail('Type cannot be declared in assignment to non-self '
-                          'attribute', lval)
+                self.fail(errorcode.TYPE_CANNOT_BE_DECLARED_IN_ASSIGNMENT_TO_NON_SELF_ATTRIBUTE(),
+                    lval)
         elif isinstance(lval, IndexExpr):
             if explicit_type:
-                self.fail('Unexpected type declaration', lval)
+                self.fail(errorcode.UNEXPECTED_TYPE_DECLARATION(), lval)
             if not add_global:
                 lval.accept(self)
         elif isinstance(lval, TupleExpr):
@@ -3866,7 +3864,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 extra_msg = ' (possibly by an import)'
         else:
             extra_msg = ''
-        self.fail("Name '{}' already defined{}".format(name, extra_msg), ctx)
+        self.fail(errorcode.NAME_ALREADY_DEFINED(name, extra_msg), ctx)
 
     def fail(self, error_code: ErrorCode, ctx: Context, serious: bool = False, *,
              blocker: bool = False) -> None:
@@ -3938,7 +3936,7 @@ def calculate_class_mro(defn: ClassDef, fail: Callable[[ErrorCode, Context], Non
     try:
         defn.info.calculate_mro()
     except MroError:
-        fail(errorcode.CANNOT_DETERMINE_CONSISTENT_MRO(), defn)
+        fail(errorcode.CANNOT_DETERMINE_CONSISTENT_MRO(defn.name), defn)
         defn.info.mro = []
 
 

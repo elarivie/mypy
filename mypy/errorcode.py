@@ -299,3 +299,70 @@ def ALL_BASE_OF_NEW_TYPED_DICT_MUST_BE_TYPED_DICT_TYPE() -> ErrorCode:
 def CANNOT_OVERWRITE_TYPEDDICT_FIELD_WHIlE_MERGING(key: str) -> ErrorCode:
     return ErrorCode(62, "error", 'Cannot overwrite TypedDict field "{}" while merging'
               .format(key))
+
+
+def CANNOT_OVERWRITE_TYPEDDICT_FIELD_WHIlE_EXTENDING(key: str) -> ErrorCode:
+    return ErrorCode(62, "error", 'Cannot overwrite TypedDict field "{}" while extending'
+              .format(key))
+
+
+def TYPEDDICT_CLASS_SYNTAX_IS_ONLY_SUPPORTED_IN_PYTHON36() -> ErrorCode:
+    return ErrorCode(63, "error", 'TypedDict class syntax is only supported in Python 3.6')
+
+
+def TPDICT_CLASS_ERROR() -> ErrorCode:
+    return ErrorCode(64, "error", 'Invalid statement in TypedDict definition; '
+        'expected "field_name: field_type"')
+
+
+def NAME_ALREADY_DEFINED(name: str, extra_msg: str) -> ErrorCode:
+    return ErrorCode(65, "error", "Name '{}' already defined{}".format(name, extra_msg))
+
+
+def DUPLICATE_TYPEDDICT(name: str) -> ErrorCode:
+    return ErrorCode(66, "error", 'Duplicate TypedDict field "{}"'.format(name))
+
+
+def RIGHT_HAND_SIDE_VALUES_ARE_NOT_SUPPORTED_IN_TYPEDDICT() -> ErrorCode:
+    return ErrorCode(67, "error", 'Right hand side values are not supported in TypedDict')
+
+
+def VALUE_TOTAL_MUST_BE_TRUE_OR_FALSE() -> ErrorCode:
+    return ErrorCode(68, "error", 'Value of "total" must be True or False')
+
+
+def CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_EPSILON(name: str) -> ErrorCode:
+    return ErrorCode(69, "error", 'Cannot assign multiple types to name "{}"'
+              ' without an explicit "Type[...]" annotation'
+              .format(name))
+
+
+def TYPE_CANNOT_BE_DECLARED_IN_ASSIGNMENT_TO_NON_SELF_ATTRIBUTE() -> ErrorCode:
+    return ErrorCode(70, "error", 'Type cannot be declared in assignment to non-self '
+              'attribute')
+
+
+def UNEXPECTED_TYPE_DECLARATION() -> ErrorCode:
+    return ErrorCode(71, "error", 'Unexpected type declaration')
+
+
+def REQUIRED_POS_ARGS_MAY_NOT_APPEAR_AFTER_DEFAULT_NAMED_VARARGS() -> ErrorCode:
+    return ErrorCode(72, "error", "Required positional args may not appear "
+         "after default, named or var args")
+
+
+def POS_DEFAULT_ARGS_NOT_AFTER_NAMED_VARARGS() -> ErrorCode:
+    return ErrorCode(73, "error",
+        "Positional default args may not appear after named or var args")
+
+
+def VAR_ARGS_NOT_AFTER_NAMED_VARARGS() -> ErrorCode:
+    return ErrorCode(74, "error", "Var args may not appear after named or var args")
+
+
+def A_KWARGS_MUST_BE_LAST_ARGUMENT() -> ErrorCode:
+    return ErrorCode(75, "error", "A **kwargs argument must be the last argument")
+
+
+def ONLY_ONE_KWARGS_ARGUMENT() -> ErrorCode:
+    return ErrorCode(76, "error", "You may only have one **kwargs argument")
