@@ -65,7 +65,7 @@ from mypy.typevars import fill_typevars
 from mypy.visitor import NodeVisitor
 from mypy.traverser import TraverserVisitor
 from mypy.errors import Errors, report_internal_error
-from mypy.messages import CANNOT_ASSIGN_TO_TYPE, MessageBuilder
+from mypy.messages import MessageBuilder
 from mypy.types import (
     FunctionLike, UnboundType, TypeVarDef, TypeType, TupleType, UnionType, StarType, function_type,
     TypedDictType, NoneTyp, CallableType, Overloaded, Instance, Type, TypeVarType, AnyType,
@@ -1528,11 +1528,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 self.add_symbol(imported_id, symbol, imp)
             elif module and not missing:
                 # Missing attribute.
-                message = "Module '{}' has no attribute '{}'".format(import_id, id)
-                extra = self.undefined_name_extra_info('{}.{}'.format(import_id, id))
-                if extra:
-                    message += " {}".format(extra)
-                self.fail(message, imp)
+                self.fail(errorcode.MODULE_X_HAS_NO_ATTRIBUTE_Y(
+                    import_id,
+                    id,
+                    self.undefined_name_extra_info('{}.{}'.format(import_id, id))), imp)
                 self.add_unknown_symbol(as_id or id, imp, is_import=True)
             else:
                 # Missing module.
@@ -1582,17 +1581,17 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         return node
 
     def add_fixture_note(self, fullname: str, ctx: Context) -> None:
-        self.note('Maybe your test fixture does not define "{}"?'.format(fullname), ctx)
+        self.note(errorcode.TEST_FIXTURE_DOES_NOT_DEFINE_X(fullname), ctx)
         if fullname in SUGGESTED_TEST_FIXTURES:
             self.note(
-                'Consider adding [builtins fixtures/{}] to your test description'.format(
+                errorcode.SUGGESTED_ADD_TEST_FIXTURES(
                     SUGGESTED_TEST_FIXTURES[fullname]), ctx)
 
     def correct_relative_import(self, node: Union[ImportFrom, ImportAll]) -> str:
         import_id, ok = correct_relative_import(self.cur_mod_id, node.relative, node.id,
                                                 self.cur_mod_node.is_package_init_file())
         if not ok:
-            self.fail("Relative import climbs too many namespaces", node)
+            self.fail(errorcode.RELATIVE_IMPORT_CLIMBS_TOO_MANY_NAMESPACES(), node)
         return import_id
 
     def visit_import_all(self, i: ImportAll) -> None:
@@ -1700,7 +1699,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         else:
             if (any(isinstance(lv, NameExpr) and lv.is_inferred_def for lv in s.lvalues) and
                     self.type and self.type.is_protocol and not self.is_func_scope()):
-                self.fail('All protocol members must have explicitly declared types', s)
+                self.fail(errorcode.PROTOCOL_MEMBERS_MUT_HAVE_DECLARED_TYPE(), s)
             # Set the type if the rvalue is a simple literal (even if the above error occurred).
             if len(s.lvalues) == 1 and isinstance(s.lvalues[0], NameExpr):
                 if s.lvalues[0].is_inferred_def:
@@ -1930,15 +1929,15 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         elif isinstance(lval, TupleExpr):
             items = lval.items
             if len(items) == 0 and isinstance(lval, TupleExpr):
-                self.fail("can't assign to ()", lval)
+                self.fail(errorcode.CANNOT_ASSIGN_TO_TUPLE(), lval)
             self.analyze_tuple_or_list_lvalue(lval, add_global, explicit_type)
         elif isinstance(lval, StarExpr):
             if nested:
                 self.analyze_lvalue(lval.expr, nested, add_global, explicit_type)
             else:
-                self.fail('Starred assignment target must be in a list or tuple', lval)
+                self.fail(errorcode.STARRED_ASSIGNMENT_TARGET_MUST_BE_IN_LIST_OR_TUPLE(), lval)
         else:
-            self.fail('Invalid assignment target', lval)
+            self.fail(errorcode.INVALID_ASSIGNMENT_TARGET(), lval)
 
     def analyze_tuple_or_list_lvalue(self, lval: TupleExpr,
                                      add_global: bool = False,
@@ -1948,7 +1947,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         star_exprs = [item for item in items if isinstance(item, StarExpr)]
 
         if len(star_exprs) > 1:
-            self.fail('Two starred expressions in assignment', lval)
+            self.fail(errorcode.TWO_STARRED_EXPRESSIONS_IN_ASSIGNMENT(), lval)
         else:
             if len(star_exprs) == 1:
                 star_exprs[0].valid = True
@@ -1963,7 +1962,9 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             node = self.type.get(lval.name)
             if node is None or isinstance(node.node, Var) and node.node.is_abstract_var:
                 if self.type.is_protocol and node is None:
-                    self.fail("Protocol members cannot be defined via assignment to self", lval)
+                    self.fail(
+                        errorcode.PROTOCOL_MEMBERS_CANNOT_BE_DEFINED_VIA_ASSIGNMENT_TO_SELF(),
+                        lval)
                 else:
                     # Implicit attribute definition in __init__.
                     lval.is_new_def = True
@@ -1988,13 +1989,13 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
     def check_lvalue_validity(self, node: Union[Expression, SymbolNode, None],
                               ctx: Context) -> None:
         if isinstance(node, TypeVarExpr):
-            self.fail('Invalid assignment target', ctx)
+            self.fail(errorcode.INVALID_ASSIGNMENT_TARGET(), ctx)
         elif isinstance(node, TypeInfo):
-            self.fail(CANNOT_ASSIGN_TO_TYPE, ctx)
+            self.fail(errorcode.CANNOT_ASSIGN_TO_TYPE(), ctx)
 
     def store_declared_types(self, lvalue: Lvalue, typ: Type) -> None:
         if isinstance(typ, StarType) and not isinstance(lvalue, StarExpr):
-            self.fail('Star type only allowed for starred expressions', lvalue)
+            self.fail(errorcode.STAR_TYPE_ONLY_ALLOWED_FOR_STARRED_EXPRESSIONS(), lvalue)
         if isinstance(lvalue, RefExpr):
             lvalue.is_inferred_def = False
             if isinstance(lvalue.node, Var):
@@ -2005,12 +2006,12 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         elif isinstance(lvalue, TupleExpr):
             if isinstance(typ, TupleType):
                 if len(lvalue.items) != len(typ.items):
-                    self.fail('Incompatible number of tuple items', lvalue)
+                    self.fail(errorcode.INCOMPATIBLE_NUMBER_OF_TUPLE_ITEMS(), lvalue)
                     return
                 for item, itemtype in zip(lvalue.items, typ.items):
                     self.store_declared_types(item, itemtype)
             else:
-                self.fail('Tuple type expected for multiple variables',
+                self.fail(errorcode.TUPLE_TYPE_EXPECTED_FOR_MULTIPLE_VARIABLES(),
                           lvalue)
         elif isinstance(lvalue, StarExpr):
             # Historical behavior for the old parser
@@ -2040,11 +2041,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             newtype_class_info.tuple_type = old_type
         elif isinstance(old_type, Instance):
             if old_type.type.is_protocol:
-                self.fail("NewType cannot be used with protocol classes", s)
+                self.fail(errorcode.NEW_TYPE_CANNOT_BE_USED_WITH_PROTOCOL_CLASSES(), s)
             newtype_class_info = self.build_newtype_typeinfo(name, old_type, old_type)
         else:
-            message = "Argument 2 to NewType(...) must be subclassable (got {})"
-            self.fail(message.format(self.msg.format(old_type)), s)
+            self.fail("Argument 2 to NewType(...) must be subclassable (got {})".format(self.msg.format(old_type)), s)
             return
 
         check_for_explicit_any(old_type, self.options, self.is_typeshed_stub_file, self.msg,
@@ -2056,7 +2056,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         # If so, add it to the symbol table.
         node = self.lookup(name, s)
         if node is None:
-            self.fail("Could not find {} in current namespace".format(name), s)
+            self.fail(errorcode.COULD_NOT_FIND_X_IN_CURRENT_NAMESPACE(name), s)
             return
         # TODO: why does NewType work in local scopes despite always being of kind GDEF?
         node.kind = GDEF
@@ -2075,9 +2075,9 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             name = s.lvalues[0].name
             if not lvalue.is_inferred_def:
                 if s.type:
-                    self.fail("Cannot declare the type of a NewType declaration", s)
+                    self.fail(errorcode.CANNOT_DECLARE_THE_TYPE_OF_A_NEWTYPE_DECLARATION(), s)
                 else:
-                    self.fail("Cannot redefine '%s' as a NewType" % name, s)
+                    self.fail(errorcode.CANNOT_REDEFINE_X_AS_A_NEWTYPE(name), s)
 
             # This dummy NewTypeExpr marks the call as sufficiently analyzed; it will be
             # overwritten later with a fully complete NewTypeExpr if there are no other
@@ -2090,23 +2090,24 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         has_failed = False
         args, arg_kinds = call.args, call.arg_kinds
         if len(args) != 2 or arg_kinds[0] != ARG_POS or arg_kinds[1] != ARG_POS:
-            self.fail("NewType(...) expects exactly two positional arguments", context)
+            self.fail(errorcode.NEWTYPE_EXPECTS_TWO_POSITIONAL_ARGUMENTS(), context)
             return None
 
         # Check first argument
         if not isinstance(args[0], (StrExpr, BytesExpr, UnicodeExpr)):
-            self.fail("Argument 1 to NewType(...) must be a string literal", context)
+            self.fail(errorcode.FIRST_ARGUMENT_OF_NEWTYPE_MUST_BE_STRING_LITERAL(), context)
             has_failed = True
         elif args[0].value != name:
-            msg = "String argument 1 '{}' to NewType(...) does not match variable name '{}'"
-            self.fail(msg.format(args[0].value, name), context)
+            self.fail(
+                errorcode.STRING_FIRST_ARGUMENT_TO_NEWTYPE_DOES_NOT_MATCH_VAR_NAME(
+                    args[0].value, name), context)
             has_failed = True
 
         # Check second argument
         try:
             unanalyzed_type = expr_to_unanalyzed_type(args[1])
         except TypeTranslationError:
-            self.fail("Argument 2 to NewType(...) must be a valid type", context)
+            self.fail(errorcode.SECOND_ARGUMENT_OF_NEWTYPE_MUST_BE_VALID_TYPE(), context)
             return None
         old_type = self.anal_type(unanalyzed_type)
 
@@ -2144,9 +2145,9 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         name = lvalue.name
         if not lvalue.is_inferred_def:
             if s.type:
-                self.fail("Cannot declare the type of a type variable", s)
+                self.fail(errorcode.CANNOT_DECLARE_TYPE_OF_TYPE_VARIABLE(), s)
             else:
-                self.fail("Cannot redefine '%s' as a type variable" % name, s)
+                self.fail(errorcode.CANNOT_REDEFINE_X_AS_TYPE_VARIABLE(name), s)
             return
 
         if not self.check_typevar_name(call, name, s):
@@ -2190,15 +2191,15 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def check_typevar_name(self, call: CallExpr, name: str, context: Context) -> bool:
         if len(call.args) < 1:
-            self.fail("Too few arguments for TypeVar()", context)
+            self.fail(errorcode.TOO_FEW_ARGUMENTS_FOR_TYPEVAR(), context)
             return False
         if (not isinstance(call.args[0], (StrExpr, BytesExpr, UnicodeExpr))
                 or not call.arg_kinds[0] == ARG_POS):
-            self.fail("TypeVar() expects a string literal as first argument", context)
+            self.fail(errorcode.TYPEVAR_EXPECTS_STRING_LITERAL_AS_FIRST_ARG(), context)
             return False
         elif call.args[0].value != name:
-            msg = "String argument 1 '{}' to TypeVar(...) does not match variable name '{}'"
-            self.fail(msg.format(call.args[0].value, name), context)
+            self.fail(errorcode.STRING_FIRST_ARGUMENT_X_TOTYPEVAR_DOESNOT_MATCH_VARIABLE_Y(
+                call.args[0].value, name), context)
             return False
         return True
 
@@ -2229,52 +2230,52 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         upper_bound = self.object_type()   # type: Type
         for param_value, param_name, param_kind in zip(args, names, kinds):
             if not param_kind == ARG_NAMED:
-                self.fail("Unexpected argument to TypeVar()", context)
+                self.fail(errorcode.UNEXPECTED_ARGUMENT_TO_TYPEVAR(), context)
                 return None
             if param_name == 'covariant':
                 if isinstance(param_value, NameExpr):
                     if param_value.name == 'True':
                         covariant = True
                     else:
-                        self.fail("TypeVar 'covariant' may only be 'True'", context)
+                        self.fail(errorcode.TYPEVAR_COVARIANT_MAY_ONLY_BE_TRUE(), context)
                         return None
                 else:
-                    self.fail("TypeVar 'covariant' may only be 'True'", context)
+                    self.fail(errorcode.TYPEVAR_COVARIANT_MAY_ONLY_BE_TRUE(), context)
                     return None
             elif param_name == 'contravariant':
                 if isinstance(param_value, NameExpr):
                     if param_value.name == 'True':
                         contravariant = True
                     else:
-                        self.fail("TypeVar 'contravariant' may only be 'True'", context)
+                        self.fail(errorcode.TYPEVAR_CONTRAVARIANT_MAY_ONLY_BE_TRUE(), context)
                         return None
                 else:
-                    self.fail("TypeVar 'contravariant' may only be 'True'", context)
+                    self.fail(errorcode.TYPEVAR_CONTRAVARIANT_MAY_ONLY_BE_TRUE(), context)
                     return None
             elif param_name == 'bound':
                 if has_values:
-                    self.fail("TypeVar cannot have both values and an upper bound", context)
+                    self.fail(errorcode.TYPEVAR_CANNOT_HAVE_BOTH_VALUES_AND_UPPER_BOUND(), context)
                     return None
                 try:
                     upper_bound = self.expr_to_analyzed_type(param_value)
                 except TypeTranslationError:
-                    self.fail("TypeVar 'bound' must be a type", param_value)
+                    self.fail(errorcode.TYPEVAR_BOUND_MUST_BE_A_TYPE(), param_value)
                     return None
             elif param_name == 'values':
                 # Probably using obsolete syntax with values=(...). Explain the current syntax.
-                self.fail("TypeVar 'values' argument not supported", context)
-                self.fail("Use TypeVar('T', t, ...) instead of TypeVar('T', values=(t, ...))",
+                self.fail(errorcode.TYPE_VAR_VALUES_NOT_SUPPORTED(), context)
+                self.fail(errorcode.USE_TYPEVAR_WITHOUTVALUES(),
                           context)
                 return None
             else:
-                self.fail("Unexpected argument to TypeVar(): {}".format(param_name), context)
+                self.fail(errorcode.UNEXPECTED_ARGUMENT_TO_TYPEVAR_X(param_name), context)
                 return None
 
         if covariant and contravariant:
-            self.fail("TypeVar cannot be both covariant and contravariant", context)
+            self.fail(errorcode.TYPEVAR_CANNOT_BE_BOTH_COVARIANT_AND_CONTRAVARIANT(), context)
             return None
         elif num_values == 1:
-            self.fail("TypeVar cannot have only a single constraint", context)
+            self.fail(errorcode.TYPEVAR_CANOT_HAVE_ONLY_A_SINGLE_CONSTRAINT(), context)
             return None
         elif covariant:
             variance = COVARIANT
@@ -2345,15 +2346,15 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         # TODO: Share code with check_argument_count in checkexpr.py?
         args = call.args
         if len(args) < 2:
-            return self.fail_namedtuple_arg("Too few arguments for namedtuple()", call)
+            return self.fail_namedtuple_arg(errorcode.TOO_FEW_ARGUMENTS_FOR_NAMEDTUPLE(), call)
         if len(args) > 2:
             # FIX incorrect. There are two additional parameters
-            return self.fail_namedtuple_arg("Too many arguments for namedtuple()", call)
+            return self.fail_namedtuple_arg(errorcode.TOO_MANY_ARGUMENTS_FOR_NAMEDTUPLE(), call)
         if call.arg_kinds != [ARG_POS, ARG_POS]:
-            return self.fail_namedtuple_arg("Unexpected arguments to namedtuple()", call)
+            return self.fail_namedtuple_arg(errorcode.UNEXPECTED_ARGUMENT_TO_NAMEDTUPLE(), call)
         if not isinstance(args[0], (StrExpr, BytesExpr, UnicodeExpr)):
             return self.fail_namedtuple_arg(
-                "namedtuple() expects a string literal as the first argument", call)
+                errorcode.NAMEDTUPLE_EXPECTS_STRING_LITERAL_AS_FIRST_ARGUMENT(), call)
         types = []  # type: List[Type]
         ok = True
         if not isinstance(args[1], (ListExpr, TupleExpr)):
@@ -2363,15 +2364,16 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 items = str_expr.value.replace(',', ' ').split()
             else:
                 return self.fail_namedtuple_arg(
-                    "List or tuple literal expected as the second argument to namedtuple()", call)
+                    errorcode.LIST_OR_TUPLE_LITERAL_EXPECTE_AS_SECOND_ARGUMENT_TO_NAMEDTUPLE(),
+                    call)
         else:
             listexpr = args[1]
             if fullname == 'collections.namedtuple':
                 # The fields argument contains just names, with implicit Any types.
                 if any(not isinstance(item, (StrExpr, BytesExpr, UnicodeExpr))
                        for item in listexpr.items):
-                    return self.fail_namedtuple_arg("String literal expected as namedtuple() item",
-                                                    call)
+                    return self.fail_namedtuple_arg(
+                        errorcode.STRING_LITERAL_EXPECTED_AS_NAMEDTUPLE_ITEM(), call)
                 items = [cast(StrExpr, item).value for item in listexpr.items]
             else:
                 # The fields argument contains (name, type) tuples.
@@ -2391,25 +2393,27 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         for item in nodes:
             if isinstance(item, TupleExpr):
                 if len(item.items) != 2:
-                    return self.fail_namedtuple_arg("Invalid NamedTuple field definition",
-                                                    item)
+                    return self.fail_namedtuple_arg(
+                        errorcode.INVALID_NAMEDTUPLE_FIELD_DEFINITION(), item)
                 name, type_node = item.items
                 if isinstance(name, (StrExpr, BytesExpr, UnicodeExpr)):
                     items.append(name.value)
                 else:
-                    return self.fail_namedtuple_arg("Invalid NamedTuple() field name", item)
+                    return self.fail_namedtuple_arg(
+                        errorcode.INVALID_NAMEDTUPLE_FIELD_NAME(), item)
                 try:
                     type = expr_to_unanalyzed_type(type_node)
                 except TypeTranslationError:
-                    return self.fail_namedtuple_arg('Invalid field type', type_node)
+                    return self.fail_namedtuple_arg(errorcode.INVALID_FIELD_TYPE(), type_node)
                 types.append(self.anal_type(type))
             else:
-                return self.fail_namedtuple_arg("Tuple expected as NamedTuple() field", item)
+                return self.fail_namedtuple_arg(
+                    errorcode.TUPLE_EXPECTED_AS_NAMEDTUPLE_FIELD(), item)
         return items, types, True
 
-    def fail_namedtuple_arg(self, message: str,
+    def fail_namedtuple_arg(self, error_code: ErrorCode,
                             context: Context) -> Tuple[List[str], List[Type], bool]:
-        self.fail(message, context)
+        self.fail(error_code, context)
         return [], [], False
 
     def basic_new_typeinfo(self, name: str, basetype_or_fallback: Instance) -> TypeInfo:
@@ -2540,7 +2544,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             try:
                 result.append(self.anal_type(expr_to_unanalyzed_type(node)))
             except TypeTranslationError:
-                self.fail('Type expected', node)
+                self.fail(errorcode.TYPE_EXPECTED(), node)
                 result.append(AnyType(TypeOfAny.from_error))
         return result
 
@@ -2588,7 +2592,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             name = cast(StrExpr, call.args[0]).value
             if var_name is not None and name != var_name:
                 self.fail(
-                    "First argument '{}' to TypedDict() does not match variable name '{}'".format(
+                    errorcode.FIRST_ARG_X_TO_TYPEDDICT_DOES_NOT_MATCH_VAR_Y(
                         name, var_name), node)
             if name != var_name or self.is_func_scope():
                 # Give it a unique name derived from the line number.
@@ -2610,12 +2614,12 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         # TODO: Share code with check_argument_count in checkexpr.py?
         args = call.args
         if len(args) < 2:
-            return self.fail_typeddict_arg("Too few arguments for TypedDict()", call)
+            return self.fail_typeddict_arg(errorcode.TOO_FEW_ARGUMENTS_FOR_TYPEDDICT(), call)
         if len(args) > 3:
-            return self.fail_typeddict_arg("Too many arguments for TypedDict()", call)
+            return self.fail_typeddict_arg(errorcode.TOO_MANY_ARGUMENTS_FOR_TYPEDDICT(), call)
         # TODO: Support keyword arguments
         if call.arg_kinds not in ([ARG_POS, ARG_POS], [ARG_POS, ARG_POS, ARG_NAMED]):
-            return self.fail_typeddict_arg("Unexpected arguments to TypedDict()", call)
+            return self.fail_typeddict_arg(errorcode.UNEXPECTED_ARGUMENT_TO_TYPEDDICT(), call)
         if len(args) == 3 and call.arg_names[2] != 'total':
             return self.fail_typeddict_arg(
                 'Unexpected keyword argument "{}" for "TypedDict"'.format(call.arg_names[2]), call)
@@ -2670,9 +2674,9 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             types.append(self.anal_type(type))
         return items, types, True
 
-    def fail_typeddict_arg(self, message: str,
+    def fail_typeddict_arg(self, error_code: ErrorCode,
                            context: Context) -> Tuple[List[str], List[Type], bool, bool]:
-        self.fail(message, context)
+        self.fail(error_code, context)
         return [], [], True, False
 
     def build_typeddict_typeinfo(self, name: str, items: List[str],
@@ -2720,7 +2724,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         return sym.node.fullname() == 'typing.ClassVar'
 
     def fail_invalid_classvar(self, context: Context) -> None:
-        self.fail('ClassVar can only be used for assignments in class body', context)
+        self.fail(errorcode.CLASSVAR_CAN_ONLY_BE_USED_FOR_ASSIGNMENTS_IN_CLASS_BODY(), context)
 
     def process_module_assignment(self, lvals: List[Lvalue], rval: Expression,
                                   ctx: AssignmentStmt) -> None:
@@ -2773,8 +2777,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     if lnode:
                         if lnode.kind == MODULE_REF and lnode.node is not rnode.node:
                             self.fail(
-                                "Cannot assign multiple modules to name '{}' "
-                                "without explicit 'types.ModuleType' annotation".format(lval.name),
+                                errorcode.CANT_ASSIGN_MULTI_MOD_TO_X_WITHOUT_MODTYPE_ANNOTATION(
+                                    lval.name),
                                 ctx)
                         # never create module alias except on initial var definition
                         elif lval.is_inferred_def:
@@ -2910,10 +2914,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         assert len(items) == len(values)
         return items, values, True
 
-    def fail_enum_call_arg(self, message: str,
+    def fail_enum_call_arg(self, error_code: ErrorCode,
                            context: Context) -> Tuple[List[str],
                                                       List[Optional[Expression]], bool]:
-        self.fail(message, context)
+        self.fail(error_code, context)
         return [], [], False
 
     def visit_decorator(self, dec: Decorator) -> None:
@@ -2950,7 +2954,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     dec.func.is_abstract = True
                 self.check_decorated_function_is_method('property', dec)
                 if len(dec.func.arguments) > 1:
-                    self.fail('Too many arguments', dec.func)
+                    self.fail(errorcode.TOO_MANY_ARGUMENTS(), dec.func)
             elif refers_to_fullname(d, 'typing.no_type_check'):
                 dec.var.type = AnyType(TypeOfAny.special_form)
                 no_type_check = True
@@ -3070,7 +3074,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             actual_targets = [t for t in s.target if t is not None]
             if len(actual_targets) == 0:
                 # We have a type for no targets
-                self.fail('Invalid type comment', s)
+                self.fail(errorcode.INVALID_TYPE_COMMENT(), s)
             elif len(actual_targets) == 1:
                 # We have one target and one type
                 types = [s.target_type]
@@ -3080,10 +3084,10 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     types = s.target_type.items
                 else:
                     # But it's the wrong number of items
-                    self.fail('Incompatible number of types for `with` targets', s)
+                    self.fail(errorcode.INCOMPATIBLE_NUMBER_OF_TYPES_FOR_WITH_TARGETS(), s)
             else:
                 # We have multiple targets and one type
-                self.fail('Multiple types expected for multiple `with` targets', s)
+                self.fail(errorcode.MULTIPLE_TYPES_EXPECTED_FOR_MULTIPLE_WITH_TARGETS(), s)
 
         new_types = []  # type: List[Type]
         for e, n in zip(s.expr, s.target):
@@ -3211,16 +3215,16 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
     def visit_star_expr(self, expr: StarExpr) -> None:
         if not expr.valid:
             # XXX TODO Change this error message
-            self.fail('Can use starred expression only as assignment target', expr)
+            self.fail(errorcode.CAN_USE_STARRED_EXPRESSION_ONLY_AS_ASSIGNMENT_TARGET(), expr)
         else:
             expr.expr.accept(self)
 
     def visit_yield_from_expr(self, e: YieldFromExpr) -> None:
         if not self.is_func_scope():  # not sure
-            self.fail("'yield from' outside function", e, True, blocker=True)
+            self.fail(errorcode.YIELD_FORM_OUTSIDE_FUNCTION(), e, True, blocker=True)
         else:
             if self.function_stack[-1].is_coroutine:
-                self.fail("'yield from' in async function", e, True, blocker=True)
+                self.fail(errorcode.YIELD_FORM_ASYNC_FUNCTION(), e, True, blocker=True)
             else:
                 self.function_stack[-1].is_generator = True
         if e.expr:
@@ -3243,7 +3247,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             try:
                 target = expr_to_unanalyzed_type(expr.args[0])
             except TypeTranslationError:
-                self.fail('Cast target is not a type', expr)
+                self.fail(errorcode.CAST_TARGET_IS_NOT_A_TYPE(), expr)
                 return
             # Piggyback CastExpr object to the CallExpr object; it takes
             # precedence over the CallExpr semantics.
@@ -3259,7 +3263,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             expr.analyzed.accept(self)
         elif refers_to_fullname(expr.callee, 'typing.Any'):
             # Special form Any(...) no longer supported.
-            self.fail('Any(...) is no longer supported. Use cast(Any, ...) instead', expr)
+            self.fail(errorcode.ANY_EPSILON_IS_NOT_SUPPORTED(), expr)
         elif refers_to_fullname(expr.callee, 'typing._promote'):
             # Special form _promote(...).
             if not self.check_fixed_args(expr, 1, '_promote'):
@@ -3268,7 +3272,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             try:
                 target = expr_to_unanalyzed_type(expr.args[0])
             except TypeTranslationError:
-                self.fail('Argument 1 to _promote is not a type', expr)
+                self.fail(errorcode.FIRST_AGUMENT_TO_PROMITE_IS_NOT_A_TYPE(), expr)
                 return
             expr.analyzed = PromoteExpr(target)
             expr.analyzed.line = expr.line
@@ -3836,18 +3840,15 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if n in self.globals:
             prev_is_overloaded = isinstance(self.globals[n], OverloadedFuncDef)
             if is_overloaded_func and prev_is_overloaded:
-                self.fail("Nonconsecutive overload {} found".format(n), ctx)
+                self.fail(errorcode.NONCONSECUTIVE_OVERLOAD_X_FOUND(n), ctx)
             elif prev_is_overloaded:
-                self.fail("Definition of '{}' missing 'overload'".format(n), ctx)
+                self.fail(errorcode.DEFINITION_OF_X_MISSING_OVERLOAD(n), ctx)
             else:
                 self.name_already_defined(n, ctx, self.globals[n])
 
     def name_not_defined(self, name: str, ctx: Context) -> None:
-        message = "Name '{}' is not defined".format(name)
-        extra = self.undefined_name_extra_info(name)
-        if extra:
-            message += ' {}'.format(extra)
-        self.fail(message, ctx)
+        self.fail(errorcode.NAME_NOT_DEFINED(
+            name, self.undefined_name_extra_info(name)), ctx)
         if 'builtins.{}'.format(name) in SUGGESTED_TEST_FIXTURES:
             # The user probably has a missing definition in a test fixture. Let's verify.
             fullname = 'builtins.{}'.format(name)

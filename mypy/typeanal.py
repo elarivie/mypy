@@ -759,7 +759,7 @@ class TypeAnalyserPass3(TypeVisitor[None]):
         pass
 
     def visit_type_list(self, t: TypeList) -> None:
-        self.fail('Invalid type', t)
+        self.fail(errorcode.INVALID_TYPE(), t)
 
     def visit_type_var(self, t: TypeVarType) -> None:
         if t.upper_bound:

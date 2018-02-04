@@ -22,6 +22,10 @@ from mypy import messages
 from mypy import subtypes
 from mypy import meet
 
+from mypy import errorcode
+from mypy.errorcode import ErrorCode
+
+
 MYPY = False
 if MYPY:  # import for forward declaration only
     import mypy.checker
@@ -435,7 +439,7 @@ def analyze_class_attribute_access(itype: Instance,
         if is_method:
             msg.cant_assign_to_method(context)
         if isinstance(node.node, TypeInfo):
-            msg.fail(messages.CANNOT_ASSIGN_TO_TYPE, context)
+            msg.fail(errorcode.CANNOT_ASSIGN_TO_TYPE(), context)
 
     if itype.type.is_enum and not (is_lvalue or is_decorated or is_method):
         return itype

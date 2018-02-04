@@ -456,3 +456,291 @@ def GENERIC_TUPLE_TYPES_NOT_SUPPORTED() -> ErrorCode:
 
 def GENERIC_TYPEDDICT_TYPES_NOT_SUPPORTED() -> ErrorCode:
     return ErrorCode(96, "error", 'Generic TypedDict types not supported')
+
+
+def TEST_FIXTURE_DOES_NOT_DEFINE_X(fullname: str) -> ErrorCode:
+    return ErrorCode(97, "note", 'Maybe your test fixture does not define "{}"?'.format(fullname))
+
+
+def RELATIVE_IMPORT_CLIMBS_TOO_MANY_NAMESPACES() -> ErrorCode:
+    return ErrorCode(98, "error", "Relative import climbs too many namespaces")
+
+
+def PROTOCOL_MEMBERS_MUT_HAVE_DECLARED_TYPE() -> ErrorCode:
+    return ErrorCode(99, "error", 'All protocol members must have explicitly declared types')
+
+
+def TWO_STARRED_EXPRESSIONS_IN_ASSIGNMENT() -> ErrorCode:
+    return ErrorCode(100, "error", 'Two starred expressions in assignment')
+
+
+def CANNOT_ASSIGN_TO_TUPLE() -> ErrorCode:
+    return ErrorCode(101, "error", "can't assign to ()")
+
+
+def INVALID_ASSIGNMENT_TARGET() -> ErrorCode:
+    return ErrorCode(102, "error", 'Invalid assignment target')
+
+
+def STARRED_ASSIGNMENT_TARGET_MUST_BE_IN_LIST_OR_TUPLE() -> ErrorCode:
+    return ErrorCode(103, "error", 'Starred assignment target must be in a list or tuple')
+
+
+def STAR_TYPE_ONLY_ALLOWED_FOR_STARRED_EXPRESSIONS() -> ErrorCode:
+    return ErrorCode(104, "error", 'Star type only allowed for starred expressions')
+
+
+def INCOMPATIBLE_NUMBER_OF_TUPLE_ITEMS() -> ErrorCode:
+    return ErrorCode(105, "error", 'Incompatible number of tuple items')
+
+
+def TUPLE_TYPE_EXPECTED_FOR_MULTIPLE_VARIABLES() -> ErrorCode:
+    return ErrorCode(106, "error", 'Tuple type expected for multiple variables')
+
+
+def NEW_TYPE_CANNOT_BE_USED_WITH_PROTOCOL_CLASSES() -> ErrorCode:
+    return ErrorCode(107, "error", "NewType cannot be used with protocol classes")
+
+
+def COULD_NOT_FIND_X_IN_CURRENT_NAMESPACE(name: str) -> ErrorCode:
+    return ErrorCode(108, "error", "Could not find {} in current namespace".format(name))
+
+
+def CANNOT_DECLARE_THE_TYPE_OF_A_NEWTYPE_DECLARATION() -> ErrorCode:
+    return ErrorCode(109, "error", "Cannot declare the type of a NewType declaration")
+
+
+def CANNOT_REDEFINE_X_AS_A_NEWTYPE(name: str) -> ErrorCode:
+    return ErrorCode(110, "error", "Cannot redefine '%s' as a NewType" % name)
+
+
+def SUGGESTED_ADD_TEST_FIXTURES(suggested_test_fixtures: str) -> ErrorCode:
+    return ErrorCode(111,
+                     "note",
+                     'Consider adding [builtins fixtures/{}] to your test description'.format(
+                         suggested_test_fixtures))
+
+
+def CANNOT_ASSIGN_TO_TYPE() -> ErrorCode:
+    return ErrorCode(112, "error", 'Cannot assign to a type')
+
+
+def PROTOCOL_MEMBERS_CANNOT_BE_DEFINED_VIA_ASSIGNMENT_TO_SELF() -> ErrorCode:
+    return ErrorCode(113, "error", "Protocol members cannot be defined via assignment to self")
+
+
+def TYPEVAR_EXPECTS_STRING_LITERAL_AS_FIRST_ARG() -> ErrorCode:
+    return ErrorCode(114, "error", "TypeVar() expects a string literal as first argument")
+
+
+def FIRST_ARGUMENT_OF_NEWTYPE_MUST_BE_STRING_LITERAL() -> ErrorCode:
+    return ErrorCode(115, "error", "Argument 1 to NewType(...) must be a string literal")
+
+
+def SECOND_ARGUMENT_OF_NEWTYPE_MUST_BE_VALID_TYPE() -> ErrorCode:
+    return ErrorCode(116, "error", "Argument 2 to NewType(...) must be a valid type")
+
+
+def CANNOT_DECLARE_TYPE_OF_TYPE_VARIABLE() -> ErrorCode:
+    return ErrorCode(117, "error", "Cannot declare the type of a type variable")
+
+
+def CANNOT_REDEFINE_X_AS_TYPE_VARIABLE(name: str) -> ErrorCode:
+    return ErrorCode(118, "error", "Cannot redefine '%s' as a type variable" % name)
+
+
+def TOO_FEW_ARGUMENTS_FOR_TYPEVAR() -> ErrorCode:
+    return ErrorCode(119, "error", "Too few arguments for TypeVar()")
+
+
+def UNEXPECTED_ARGUMENT_TO_TYPEVAR() -> ErrorCode:
+    return ErrorCode(120, "error", "Unexpected argument to TypeVar()")
+
+
+def UNEXPECTED_ARGUMENT_TO_TYPEVAR_X(param_name: Optional[str]) -> ErrorCode:
+    return ErrorCode(127, "error", "Unexpected argument to TypeVar(): {}".format(param_name))
+
+
+def TYPEVAR_COVARIANT_MAY_ONLY_BE_TRUE() -> ErrorCode:
+    return ErrorCode(121, "error", "TypeVar 'covariant' may only be 'True'")
+
+
+def TYPEVAR_CONTRAVARIANT_MAY_ONLY_BE_TRUE() -> ErrorCode:
+    return ErrorCode(122, "error", "TypeVar 'contravariant' may only be 'True'")
+
+
+def TYPEVAR_CANNOT_HAVE_BOTH_VALUES_AND_UPPER_BOUND() -> ErrorCode:
+    return ErrorCode(123, "error", "TypeVar cannot have both values and an upper bound")
+
+
+def TYPEVAR_BOUND_MUST_BE_A_TYPE() -> ErrorCode:
+    return ErrorCode(124, "error", "TypeVar 'bound' must be a type")
+
+
+def TYPE_VAR_VALUES_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(125, "error", "TypeVar 'values' argument not supported")
+
+
+def USE_TYPEVAR_WITHOUTVALUES() -> ErrorCode:
+    return ErrorCode(126, "error",
+        "Use TypeVar('T', t, ...) instead of TypeVar('T', values=(t, ...))")
+
+
+def NEWTYPE_EXPECTS_TWO_POSITIONAL_ARGUMENTS() -> ErrorCode:
+    return ErrorCode(127, "error", "NewType(...) expects exactly two positional arguments")
+
+
+def STRING_FIRST_ARGUMENT_TO_NEWTYPE_DOES_NOT_MATCH_VAR_NAME(
+        argvalue: str, name: str) -> ErrorCode:
+    return ErrorCode(128, "error",
+        "String argument 1 '{}' to NewType(...) does not match variable name '{}'".format(
+            argvalue, name))
+
+
+def TYPEVAR_CANNOT_BE_BOTH_COVARIANT_AND_CONTRAVARIANT() -> ErrorCode:
+    return ErrorCode(129, "error", "TypeVar cannot be both covariant and contravariant")
+
+
+def TYPEVAR_CANOT_HAVE_ONLY_A_SINGLE_CONSTRAINT() -> ErrorCode:
+    return ErrorCode(130, "error", "TypeVar cannot have only a single constraint")
+
+
+def TYPE_EXPECTED() -> ErrorCode:
+    return ErrorCode(131, "error", 'Type expected')
+
+
+def CLASSVAR_CAN_ONLY_BE_USED_FOR_ASSIGNMENTS_IN_CLASS_BODY() -> ErrorCode:
+    return ErrorCode(132, "error", 'ClassVar can only be used for assignments in class body')
+
+
+def CANT_ASSIGN_MULTI_MOD_TO_X_WITHOUT_MODTYPE_ANNOTATION(name: str) -> ErrorCode:
+    return ErrorCode(133, "error", "Cannot assign multiple modules to name '{}' "
+    "without explicit 'types.ModuleType' annotation".format(name))
+
+
+def STRING_FIRST_ARGUMENT_X_TOTYPEVAR_DOESNOT_MATCH_VARIABLE_Y(value: str, name: str) -> ErrorCode:
+    return ErrorCode(134, "error",
+        "String argument 1 '{}' to TypeVar(...) does not match variable name '{}'".format(
+            value, name))
+
+
+def FIRST_ARG_X_TO_TYPEDDICT_DOES_NOT_MATCH_VAR_Y(name: str, var_name: str) -> ErrorCode:
+    return ErrorCode(135, "error",
+        "First argument '{}' to TypedDict() does not match variable name '{}'".format(
+            name, var_name))
+
+
+def INVALID_FIELD_TYPE() -> ErrorCode:
+    return ErrorCode(136, "error", 'Invalid field type')
+
+
+def TUPLE_EXPECTED_AS_NAMEDTUPLE_FIELD() -> ErrorCode:
+    return ErrorCode(137, "error", "Tuple expected as NamedTuple() field")
+
+
+def TOO_FEW_ARGUMENTS_FOR_NAMEDTUPLE() -> ErrorCode:
+    return ErrorCode(138, "error", "Too few arguments for namedtuple()")
+
+
+def TOO_MANY_ARGUMENTS_FOR_NAMEDTUPLE() -> ErrorCode:
+    return ErrorCode(139, "error", "Too many arguments for namedtuple()")
+
+
+def UNEXPECTED_ARGUMENT_TO_NAMEDTUPLE() -> ErrorCode:
+    return ErrorCode(140, "error", "Unexpected arguments to namedtuple()")
+
+
+def NAMEDTUPLE_EXPECTS_STRING_LITERAL_AS_FIRST_ARGUMENT() -> ErrorCode:
+    return ErrorCode(141, "error", "namedtuple() expects a string literal as the first argument")
+
+
+def LIST_OR_TUPLE_LITERAL_EXPECTE_AS_SECOND_ARGUMENT_TO_NAMEDTUPLE() -> ErrorCode:
+    return ErrorCode(142, "error",
+        "List or tuple literal expected as the second argument to namedtuple()")
+
+
+def STRING_LITERAL_EXPECTED_AS_NAMEDTUPLE_ITEM() -> ErrorCode:
+    return ErrorCode(143, "error", "String literal expected as namedtuple() item")
+
+
+def INVALID_NAMEDTUPLE_FIELD_DEFINITION() -> ErrorCode:
+    return ErrorCode(144, "error", "Invalid NamedTuple field definition")
+
+
+def TOO_MANY_ARGUMENTS() -> ErrorCode:
+    return ErrorCode(145, "error", 'Too many arguments')
+
+
+def INVALID_NAMEDTUPLE_FIELD_NAME() -> ErrorCode:
+    return ErrorCode(146, "error", "Invalid NamedTuple() field name")
+
+
+def CAN_USE_STARRED_EXPRESSION_ONLY_AS_ASSIGNMENT_TARGET() -> ErrorCode:
+    return ErrorCode(147, "error", 'Can use starred expression only as assignment target')
+
+
+def YIELD_FORM_OUTSIDE_FUNCTION() -> ErrorCode:
+    return ErrorCode(148, "error", "'yield from' outside function")
+
+
+def YIELD_FORM_ASYNC_FUNCTION() -> ErrorCode:
+    return ErrorCode(149, "error", "'yield from' async function")
+
+
+def CAST_TARGET_IS_NOT_A_TYPE() -> ErrorCode:
+    return ErrorCode(150, "error", 'Cast target is not a type')
+
+
+def ANY_EPSILON_IS_NOT_SUPPORTED() -> ErrorCode:
+    return ErrorCode(151, "error", 'Any(...) is no longer supported. Use cast(Any, ...) instead')
+
+
+def FIRST_AGUMENT_TO_PROMITE_IS_NOT_A_TYPE() -> ErrorCode:
+    return ErrorCode(152, "error", 'Argument 1 to _promote is not a type')
+
+
+def DEFINITION_OF_X_MISSING_OVERLOAD(name: str) -> ErrorCode:
+    return ErrorCode(153, "error", "Definition of '{}' missing 'overload'".format(name))
+
+
+def NONCONSECUTIVE_OVERLOAD_X_FOUND(name: str) -> ErrorCode:
+    return ErrorCode(154, "error", "Nonconsecutive overload {} found".format(name))
+
+
+def NAME_NOT_DEFINED(name: str, extra: Optional[str]) -> ErrorCode:
+    message = "Name '{}' is not defined".format(name)
+    if extra:
+        message += ' {}'.format(extra)
+    return ErrorCode(155, "error", message)
+
+
+def MODULE_X_HAS_NO_ATTRIBUTE_Y(
+        module_name: str, attribute_name: str, extra: Optional[str]) -> ErrorCode:
+    message = "Module '{}' has no attribute '{}'".format(module_name, attribute_name)
+    if extra:
+        message += ' {}'.format(extra)
+    return ErrorCode(156, "error", message)
+
+
+def INVALID_TYPE_COMMENT() -> ErrorCode:
+    return ErrorCode(157, "error", 'Invalid type comment')
+
+
+def INCOMPATIBLE_NUMBER_OF_TYPES_FOR_WITH_TARGETS() -> ErrorCode:
+    return ErrorCode(158, "error", 'Incompatible number of types for `with` targets')
+
+
+def MULTIPLE_TYPES_EXPECTED_FOR_MULTIPLE_WITH_TARGETS() -> ErrorCode:
+    return ErrorCode(159, "error", 'Multiple types expected for multiple `with` targets')
+
+
+def TOO_FEW_ARGUMENTS_FOR_TYPEDDICT() -> ErrorCode:
+    return ErrorCode(160, "error", "Too few arguments for TypedDict()")
+
+
+def TOO_MANY_ARGUMENTS_FOR_TYPEDDICT() -> ErrorCode:
+    return ErrorCode(161, "error", "Too many arguments for TypedDict()")
+
+
+def UNEXPECTED_ARGUMENT_TO_TYPEDDICT() -> ErrorCode:
+    return ErrorCode(162, "error", "Unexpected arguments to TypedDict()")
