@@ -1820,7 +1820,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if not lvalue.is_inferred_def:
             # Type aliases can't be re-defined.
             if node and (node.kind == TYPE_ALIAS or isinstance(node.node, TypeInfo)):
-                self.fail(errorcode.CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_EPSILON(
+                self.fail(errorcode.CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_ELLIPSIS(
                     lvalue.name), lvalue)
             return
         check_for_explicit_any(res, self.options, self.is_typeshed_stub_file, self.msg,
@@ -2044,7 +2044,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 self.fail(errorcode.NEW_TYPE_CANNOT_BE_USED_WITH_PROTOCOL_CLASSES(), s)
             newtype_class_info = self.build_newtype_typeinfo(name, old_type, old_type)
         else:
-            self.fail("Argument 2 to NewType(...) must be subclassable (got {})".format(self.msg.format(old_type)), s)
+            self.fail(errorcode.NEWTYPE_SECOND_ARGUMENT_MUST_BE_SUBCLASSABLE(
+                self.msg.format(old_type)), s)
             return
 
         check_for_explicit_any(old_type, self.options, self.is_typeshed_stub_file, self.msg,
@@ -2382,8 +2383,8 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             types = [AnyType(TypeOfAny.unannotated) for _ in items]
         underscore = [item for item in items if item.startswith('_')]
         if underscore:
-            self.fail("namedtuple() field names cannot start with an underscore: "
-                      + ', '.join(underscore), call)
+            self.fail(
+                errorcode.NAMEDTUPLE_FIELD_NAMES_CANNOT_START_WITH_UNDERSCORE(underscore), call)
         return items, types, ok
 
     def parse_namedtuple_fields_with_types(self, nodes: List[Expression],
@@ -2622,19 +2623,19 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             return self.fail_typeddict_arg(errorcode.UNEXPECTED_ARGUMENT_TO_TYPEDDICT(), call)
         if len(args) == 3 and call.arg_names[2] != 'total':
             return self.fail_typeddict_arg(
-                'Unexpected keyword argument "{}" for "TypedDict"'.format(call.arg_names[2]), call)
+                errorcode.UNEXPECTED_KEYWORD_ARGUMENT(call.arg_names[2]), call)
         if not isinstance(args[0], (StrExpr, BytesExpr, UnicodeExpr)):
             return self.fail_typeddict_arg(
-                "TypedDict() expects a string literal as the first argument", call)
+                errorcode.TYPEDDICT_EXPECTS_A_STRING_LITERAL_AS_FIRST_ARGUMENT(), call)
         if not isinstance(args[1], DictExpr):
             return self.fail_typeddict_arg(
-                "TypedDict() expects a dictionary literal as the second argument", call)
+                errorcode.TYPEDDICT_EXPECTS_A_DICT_LITERAL_AS_SECOND_ARGUMENT(), call)
         total = True  # type: Optional[bool]
         if len(args) == 3:
             total = self.parse_bool(call.args[2])
             if total is None:
                 return self.fail_typeddict_arg(
-                    'TypedDict() "total" argument must be True or False', call)
+                    errorcode.TYPEDDICT_TOTAL_ARGUMENT_MUST_BE_TRUE_OR_FALSE(), call)
         dictexpr = args[1]
         items, types, ok = self.parse_typeddict_fields_with_types(dictexpr.items, call)
         for t in types:
@@ -2664,12 +2665,12 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             if isinstance(field_name_expr, (StrExpr, BytesExpr, UnicodeExpr)):
                 items.append(field_name_expr.value)
             else:
-                self.fail_typeddict_arg("Invalid TypedDict() field name", field_name_expr)
+                self.fail_typeddict_arg(errorcode.INVALID_TYPEDDICT_FIELD_NAME(), field_name_expr)
                 return [], [], False
             try:
                 type = expr_to_unanalyzed_type(field_type_expr)
             except TypeTranslationError:
-                self.fail_typeddict_arg('Invalid field type', field_type_expr)
+                self.fail_typeddict_arg(errorcode.INVALID_FIELD_TYPE(), field_type_expr)
                 return [], [], False
             types.append(self.anal_type(type))
         return items, types, True
@@ -2861,14 +2862,14 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                                                        List[Optional[Expression]], bool]:
         args = call.args
         if len(args) < 2:
-            return self.fail_enum_call_arg("Too few arguments for %s()" % class_name, call)
+            return self.fail_enum_call_arg(errorcode.CLASS_TOO_FEW_ARGUMENTS(class_name), call)
         if len(args) > 2:
-            return self.fail_enum_call_arg("Too many arguments for %s()" % class_name, call)
+            return self.fail_enum_call_arg(errorcode.CLASS_TOO_MANY_ARGUMENTS(class_name), call)
         if call.arg_kinds != [ARG_POS, ARG_POS]:
-            return self.fail_enum_call_arg("Unexpected arguments to %s()" % class_name, call)
+            return self.fail_enum_call_arg(errorcode.CLASS_UNEXPECTED_ARGUMENTS(class_name), call)
         if not isinstance(args[0], (StrExpr, UnicodeExpr)):
             return self.fail_enum_call_arg(
-                "%s() expects a string literal as the first argument" % class_name, call)
+                errorcode.CLASS_UNEXPECTED_ARGUMENTS(class_name), call)
         items = []
         values = []  # type: List[Optional[Expression]]
         if isinstance(args[1], (StrExpr, UnicodeExpr)):
@@ -2891,24 +2892,26 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                     values.append(value)
             else:
                 return self.fail_enum_call_arg(
-                    "%s() with tuple or list expects strings or (name, value) pairs" %
-                    class_name,
+                    errorcode.CLASS_WITH_TUPLE_OR_LIST_EXPECTS_STRING_NAMEVALUEPAIRS(
+                        class_name),
                     call)
         elif isinstance(args[1], DictExpr):
             for key, value in args[1].items:
                 if not isinstance(key, (StrExpr, UnicodeExpr)):
                     return self.fail_enum_call_arg(
-                        "%s() with dict literal requires string literals" % class_name, call)
+                        errorcode.CLASS_WITH_DICT_LITERAL_REQUIRES_STRING_LITERALS(class_name),
+                        call)
                 items.append(key.value)
                 values.append(value)
         else:
             # TODO: Allow dict(x=1, y=2) as a substitute for {'x': 1, 'y': 2}?
             return self.fail_enum_call_arg(
-                "%s() expects a string, tuple, list or dict literal as the second argument" %
-                class_name,
+                errorcode.CLASS_EXPECTS_STRINGTUPLELISTDICT_LITERAL_AS_SECOND_ARGUMENT(
+                    class_name),
                 call)
         if len(items) == 0:
-            return self.fail_enum_call_arg("%s() needs at least one item" % class_name, call)
+            return self.fail_enum_call_arg(
+                errorcode.CLASS_NEEDS_AT_LEAST_ONE_ARGUMENT(class_name), call)
         if not values:
             values = [None] * len(items)
         assert len(items) == len(values)
@@ -2972,19 +2975,19 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         if not no_type_check and self.recurse_into_functions:
             dec.func.accept(self)
         if dec.decorators and dec.var.is_property:
-            self.fail('Decorated property not supported', dec)
+            self.fail(errorcode.DECORATED_PROPERTY_NOT_SUPPORTED(), dec)
 
     def check_decorated_function_is_method(self, decorator: str,
                                            context: Context) -> None:
         if not self.type or self.is_func_scope():
-            self.fail("'%s' used with a non-method" % decorator, context)
+            self.fail(errorcode.DECORATOR_USED_WITH_NON_METHOD(decorator), context)
 
     def visit_expression_stmt(self, s: ExpressionStmt) -> None:
         s.expr.accept(self)
 
     def visit_return_stmt(self, s: ReturnStmt) -> None:
         if not self.is_func_scope():
-            self.fail("'return' outside function", s)
+            self.fail(errorcode.RETURN_OUTSIDE_FUNCTION(), s)
         if s.expr:
             s.expr.accept(self)
 
@@ -3035,11 +3038,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def visit_break_stmt(self, s: BreakStmt) -> None:
         if self.loop_depth == 0:
-            self.fail("'break' outside loop", s, True, blocker=True)
+            self.fail(errorcode.BREAK_OUTSIDE_LOOP(), s, True, blocker=True)
 
     def visit_continue_stmt(self, s: ContinueStmt) -> None:
         if self.loop_depth == 0:
-            self.fail("'continue' outside loop", s, True, blocker=True)
+            self.fail(errorcode.CONTINUE_OUTSIDE_LOOP(), s, True, blocker=True)
 
     def visit_if_stmt(self, s: IfStmt) -> None:
         infer_reachability_of_if_statement(s,
@@ -3117,7 +3120,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
     def visit_del_stmt(self, s: DelStmt) -> None:
         s.expr.accept(self)
         if not self.is_valid_del_target(s.expr):
-            self.fail('Invalid delete target', s)
+            self.fail(errorcode.INVALID_DELETE_TARGET(), s)
 
     def is_valid_del_target(self, s: Expression) -> bool:
         if isinstance(s, (IndexExpr, NameExpr, MemberExpr)):
@@ -3130,26 +3133,25 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
     def visit_global_decl(self, g: GlobalDecl) -> None:
         for name in g.names:
             if name in self.nonlocal_decls[-1]:
-                self.fail("Name '{}' is nonlocal and global".format(name), g)
+                self.fail(errorcode.NAME_IS_NON_LOCAL_AND_GLOBAL(name), g)
             self.global_decls[-1].add(name)
 
     def visit_nonlocal_decl(self, d: NonlocalDecl) -> None:
         if not self.is_func_scope():
-            self.fail("nonlocal declaration not allowed at module level", d)
+            self.fail(errorcode.NONLOCAL_DECLARATION_NOT_ALLOWED_AT_MODULE_LEVEL(), d)
         else:
             for name in d.names:
                 for table in reversed(self.locals[:-1]):
                     if table is not None and name in table:
                         break
                 else:
-                    self.fail("No binding for nonlocal '{}' found".format(name), d)
+                    self.fail(errorcode.NO_BINDING_FOR_NONLOCAL_FOUND(name), d)
 
                 if self.locals[-1] is not None and name in self.locals[-1]:
-                    self.fail("Name '{}' is already defined in local "
-                              "scope before nonlocal declaration".format(name), d)
+                    self.fail(errorcode.NAME_IS_ALREADY_DEFINED_IN_LOCAL_SCOPE(name), d)
 
                 if name in self.global_decls[-1]:
-                    self.fail("Name '{}' is nonlocal and global".format(name), d)
+                    self.fail(errorcode.NAME_IS_NON_LOCAL_AND_GLOBAL(name), d)
                 self.nonlocal_decls[-1].add(name)
 
     def visit_print_stmt(self, s: PrintStmt) -> None:
@@ -3173,8 +3175,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
         n = self.lookup(expr.name, expr)
         if n:
             if n.kind == TVAR and self.tvar_scope.get_binding(n):
-                self.fail("'{}' is a type variable and only valid in type "
-                          "context".format(expr.name), expr)
+                self.fail(errorcode.TYPE_VARIABLE_ONLY_VALID_IN_TYPE(expr.name), expr)
             else:
                 expr.kind = n.kind
                 expr.node = n.node
@@ -3182,7 +3183,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def visit_super_expr(self, expr: SuperExpr) -> None:
         if not self.type:
-            self.fail('"super" used outside class', expr)
+            self.fail(errorcode.SUPER_USED_OUTSIDE_CLASS(), expr)
             return
         expr.info = self.type
         for arg in expr.call.args:
@@ -3263,7 +3264,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
             expr.analyzed.accept(self)
         elif refers_to_fullname(expr.callee, 'typing.Any'):
             # Special form Any(...) no longer supported.
-            self.fail(errorcode.ANY_EPSILON_IS_NOT_SUPPORTED(), expr)
+            self.fail(errorcode.ANY_ELLIPSIS_IS_NOT_SUPPORTED(), expr)
         elif refers_to_fullname(expr.callee, 'typing._promote'):
             # Special form _promote(...).
             if not self.check_fixed_args(expr, 1, '_promote'):
@@ -3319,16 +3320,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
         Return True if the arguments are valid.
         """
-        s = 's'
-        if numargs == 1:
-            s = ''
         if len(expr.args) != numargs:
-            self.fail("'%s' expects %d argument%s" % (name, numargs, s),
-                      expr)
+            self.fail(errorcode.EXPECTED_NUMBER_ARGUMENTS(name, numargs), expr)
             return False
         if expr.arg_kinds != [ARG_POS] * numargs:
-            self.fail("'%s' must be called with %s positional argument%s" %
-                      (name, numargs, s), expr)
+            self.fail(errorcode.EXPECTED_NUMBER_POS_ARGUMENTS(name, numargs), expr)
             return False
         return True
 
@@ -3380,7 +3376,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 full_name = '%s.%s' % (file.fullname() if file is not None else None, expr.name)
                 mod_name = " '%s'" % file.fullname() if file is not None else ''
                 if full_name in obsolete_name_mapping:
-                    self.fail("Module%s has no attribute %r (it's now called %r)" % (
+                    self.fail(errorcode.MODULE_X_HAS_NO_ATTRIBUTE_Y_NOW_Z(
                         mod_name, expr.name, obsolete_name_mapping[full_name]), expr)
         elif isinstance(base, RefExpr):
             # This branch handles the case C.bar (or cls.bar or self.bar inside
@@ -3464,7 +3460,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                 try:
                     typearg = expr_to_unanalyzed_type(item)
                 except TypeTranslationError:
-                    self.fail('Type expected within [...]', expr)
+                    self.fail(errorcode.TYPE_EXPECTED_WITHIN_BRACKET(), expr)
                     return
                 typearg = self.anal_type(typearg, aliasing=True)
                 types.append(typearg)
@@ -3571,11 +3567,11 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def visit_yield_expr(self, expr: YieldExpr) -> None:
         if not self.is_func_scope():
-            self.fail("'yield' outside function", expr, True, blocker=True)
+            self.fail(errorcode.YIELD_OUTSIDE_FUNCTION(), expr, True, blocker=True)
         else:
             if self.function_stack[-1].is_coroutine:
                 if self.options.python_version < (3, 6):
-                    self.fail("'yield' in async function", expr, True, blocker=True)
+                    self.fail(errorcode.YIELD_IN_ASYNC_FUNCTION(), expr, True, blocker=True)
                 else:
                     self.function_stack[-1].is_generator = True
                     self.function_stack[-1].is_async_generator = True
@@ -3586,9 +3582,9 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
 
     def visit_await_expr(self, expr: AwaitExpr) -> None:
         if not self.is_func_scope():
-            self.fail("'await' outside function", expr)
+            self.fail(errorcode.AWAIT_OUTSIDE_FUNCTION(), expr)
         elif not self.function_stack[-1].is_coroutine:
-            self.fail("'await' outside coroutine ('async def')", expr)
+            self.fail(errorcode.AWAIT_OUTSIDE_COROUTINE(), expr)
         expr.expr.accept(self)
 
     #
@@ -3662,7 +3658,7 @@ class SemanticAnalyzerPass2(NodeVisitor[None], SemanticAnalyzerPluginInterface):
                    for obsolete_name in obsolete_name_mapping
                    if obsolete_name.rsplit('.', 1)[-1] == name]
         if len(matches) == 1:
-            self.note("(Did you mean '{}'?)".format(obsolete_name_mapping[matches[0]]), ctx)
+            self.note(errorcode.OBSOLETE_DID_YOU_MEAN(obsolete_name_mapping[matches[0]]), ctx)
 
     def lookup_qualified(self, name: str, ctx: Context,
                          suppress_errors: bool = False) -> Optional[SymbolTableNode]:

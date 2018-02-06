@@ -1,3 +1,4 @@
+from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -331,7 +332,11 @@ def VALUE_TOTAL_MUST_BE_TRUE_OR_FALSE() -> ErrorCode:
     return ErrorCode(68, "error", 'Value of "total" must be True or False')
 
 
-def CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_EPSILON(name: str) -> ErrorCode:
+def TYPEDDICT_TOTAL_ARGUMENT_MUST_BE_TRUE_OR_FALSE() -> ErrorCode:
+    return ErrorCode(69, "error", 'TypedDict() "total" argument must be True or False')
+
+
+def CANNOT_ASSIGN_MULTIPLE_TYPES_WIHTOUT_EXPLICIT_ELLIPSIS(name: str) -> ErrorCode:
     return ErrorCode(69, "error", 'Cannot assign multiple types to name "{}"'
               ' without an explicit "Type[...]" annotation'
               .format(name))
@@ -691,7 +696,7 @@ def CAST_TARGET_IS_NOT_A_TYPE() -> ErrorCode:
     return ErrorCode(150, "error", 'Cast target is not a type')
 
 
-def ANY_EPSILON_IS_NOT_SUPPORTED() -> ErrorCode:
+def ANY_ELLIPSIS_IS_NOT_SUPPORTED() -> ErrorCode:
     return ErrorCode(151, "error", 'Any(...) is no longer supported. Use cast(Any, ...) instead')
 
 
@@ -722,6 +727,12 @@ def MODULE_X_HAS_NO_ATTRIBUTE_Y(
     return ErrorCode(156, "error", message)
 
 
+def MODULE_X_HAS_NO_ATTRIBUTE_Y_NOW_Z(module_name: str, attribute_name: str,
+        new_name: str) -> ErrorCode:
+    return ErrorCode(157, "error", "Module%s has no attribute %r (it's now called %r)" % (
+        module_name, attribute_name, new_name))
+
+
 def INVALID_TYPE_COMMENT() -> ErrorCode:
     return ErrorCode(157, "error", 'Invalid type comment')
 
@@ -744,3 +755,208 @@ def TOO_MANY_ARGUMENTS_FOR_TYPEDDICT() -> ErrorCode:
 
 def UNEXPECTED_ARGUMENT_TO_TYPEDDICT() -> ErrorCode:
     return ErrorCode(162, "error", "Unexpected arguments to TypedDict()")
+
+
+def INVALID_ARGUMENT_CONSTRUCTOR(name: Optional[str]) -> ErrorCode:
+    return ErrorCode(163, "error", 'Invalid argument constructor "{}"'.format(name))
+
+
+def ARGUMENTS_SHOULD_NOT_HAVE_NAME(name: str) -> ErrorCode:
+    return ErrorCode(164, "error", "{} arguments should not have names".format(name))
+
+
+def TYPEDDICT_EXPECTS_A_STRING_LITERAL_AS_FIRST_ARGUMENT() -> ErrorCode:
+    return ErrorCode(165, "error", "TypedDict() expects a string literal as the first argument")
+
+
+def TYPEDDICT_EXPECTS_A_DICT_LITERAL_AS_SECOND_ARGUMENT() -> ErrorCode:
+    return ErrorCode(166, "error",
+        "TypedDict() expects a dictionary literal as the second argument")
+
+
+def INVALID_TYPEDDICT_FIELD_NAME() -> ErrorCode:
+    return ErrorCode(167, "error", "Invalid TypedDict() field name")
+
+
+def NEWTYPE_SECOND_ARGUMENT_MUST_BE_SUBCLASSABLE(got: str) -> ErrorCode:
+    return ErrorCode(168, "error",
+        "Argument 2 to NewType(...) must be subclassable (got {})".format(got))
+
+
+def NAMEDTUPLE_FIELD_NAMES_CANNOT_START_WITH_UNDERSCORE(underscore: List[str]) -> ErrorCode:
+    return ErrorCode(169, "error", "namedtuple() field names cannot start with an underscore: "
+              + ', '.join(underscore))
+
+
+def UNEXPECTED_KEYWORD_ARGUMENT(name: Optional[str]) -> ErrorCode:
+    return ErrorCode(170, "error", 'Unexpected keyword argument "{}" for "TypedDict"'.format(name))
+
+
+def CLASS_NEEDS_AT_LEAST_ONE_ARGUMENT(class_name: str) -> ErrorCode:
+    return ErrorCode(171, "error", "%s() needs at least one item" % class_name)
+
+
+def CLASS_TOO_FEW_ARGUMENTS(class_name: str) -> ErrorCode:
+    return ErrorCode(171, "error", "Too few arguments for %s()" % class_name)
+
+
+def CLASS_TOO_MANY_ARGUMENTS(class_name: str) -> ErrorCode:
+    return ErrorCode(172, "error", "Too many arguments for %s()" % class_name)
+
+
+def CLASS_UNEXPECTED_ARGUMENTS(class_name: str) -> ErrorCode:
+    return ErrorCode(173, "error", "Unexpected arguments to %s()" % class_name)
+
+
+def CLASS_EXPECTS_A_STRING_LITERAL_AS_FIRST_ARGUMENT(class_name: str) -> ErrorCode:
+    return ErrorCode(174, "error",
+        "%s() expects a string literal as the first argument" % class_name)
+
+
+def CLASS_EXPECTS_STRINGTUPLELISTDICT_LITERAL_AS_SECOND_ARGUMENT(class_name: str) -> ErrorCode:
+    return ErrorCode(177, "error",
+        "%s() expects a string, tuple, list or dict literal as the second argument" % class_name)
+
+
+def CLASS_WITH_TUPLE_OR_LIST_EXPECTS_STRING_NAMEVALUEPAIRS(class_name: str) -> ErrorCode:
+    return ErrorCode(175, "error",
+        "%s() with tuple or list expects strings or (name, value) pairs" % class_name)
+
+
+def CLASS_WITH_DICT_LITERAL_REQUIRES_STRING_LITERALS(class_name: str) -> ErrorCode:
+    return ErrorCode(176, "error", "%s() with dict literal requires string literals" % class_name)
+
+
+def DECORATOR_USED_WITH_NON_METHOD(decorator: str) -> ErrorCode:
+    return ErrorCode(177, "error", "'%s' used with a non-method" % decorator)
+
+
+def RETURN_OUTSIDE_FUNCTION() -> ErrorCode:
+    return ErrorCode(178, "error", "'return' outside function")
+
+
+def BREAK_OUTSIDE_LOOP() -> ErrorCode:
+    return ErrorCode(179, "error", "'break' outside loop")
+
+
+def CONTINUE_OUTSIDE_LOOP() -> ErrorCode:
+    return ErrorCode(180, "error", "'continue' outside loop")
+
+
+def SUPER_USED_OUTSIDE_CLASS() -> ErrorCode:
+    return ErrorCode(181, "error", '"super" used outside class')
+
+
+def INVALID_DELETE_TARGET() -> ErrorCode:
+    return ErrorCode(181, "error", 'Invalid delete target')
+
+
+def NAME_IS_NON_LOCAL_AND_GLOBAL(name: str) -> ErrorCode:
+    return ErrorCode(182, "error", "Name '{}' is nonlocal and global".format(name))
+
+
+def NONLOCAL_DECLARATION_NOT_ALLOWED_AT_MODULE_LEVEL() -> ErrorCode:
+    return ErrorCode(183, "error", "nonlocal declaration not allowed at module level")
+
+
+def NO_BINDING_FOR_NONLOCAL_FOUND(name: str) -> ErrorCode:
+    return ErrorCode(184, "error", "No binding for nonlocal '{}' found".format(name))
+
+
+def NAME_IS_ALREADY_DEFINED_IN_LOCAL_SCOPE(name: str) -> ErrorCode:
+    return ErrorCode(185, "error", "Name '{}' is already defined in local "
+        "scope before nonlocal declaration".format(name))
+
+
+def TYPE_VARIABLE_ONLY_VALID_IN_TYPE(name: str) -> ErrorCode:
+    return ErrorCode(186, "error",
+        "'{}' is a type variable and only valid in type context".format(name))
+
+
+def EXPECTED_NUMBER_ARGUMENTS(name: str, numargs: int) -> ErrorCode:
+    return ErrorCode(187, "error",
+        "'%s' expects %d argument%s" % (name, numargs, "" if numargs <= 1 else "s"))
+
+
+def EXPECTED_NUMBER_POS_ARGUMENTS(name: str, numargs: int) -> ErrorCode:
+    return ErrorCode(187, "error",
+        "'%s' must be called with %s positional argument%s" %
+          (name, numargs, "" if numargs <= 1 else "s"))
+
+
+def TYPE_EXPECTED_WITHIN_BRACKET() -> ErrorCode:
+    return ErrorCode(188, "error", 'Type expected within [...]')
+
+
+def YIELD_OUTSIDE_FUNCTION() -> ErrorCode:
+    return ErrorCode(189, "error", "'yield' outside function")
+
+
+def YIELD_IN_ASYNC_FUNCTION() -> ErrorCode:
+    return ErrorCode(190, "error", "'yield' in async function")
+
+
+def AWAIT_OUTSIDE_FUNCTION() -> ErrorCode:
+    return ErrorCode(191, "error", "'await' outside function")
+
+
+def AWAIT_OUTSIDE_COROUTINE() -> ErrorCode:
+    return ErrorCode(192, "error", "'await' outside coroutine ('async def')")
+
+
+def OBSOLETE_DID_YOU_MEAN(new_name: str) -> ErrorCode:
+    return ErrorCode(193, "note", "(Did you mean '{}'?)".format(new_name))
+
+
+def BAD_NUMBER_ARGUMENT_FOR_TYPEALIAS(exp_len: int, act_len: int) -> ErrorCode:
+    return ErrorCode(194, "error",
+        'Bad number of arguments for type alias, expected: %s, given: %s'
+              % (exp_len, act_len))
+
+
+def OPTIONAL_MUST_HAVE_ONE_ARGUMENT() -> ErrorCode:
+    return ErrorCode(195, "error", 'Optional[...] must have exactly one type argument')
+
+
+def CLASSVAR_CANNOT_BE_GENERIC() -> ErrorCode:
+    return ErrorCode(196, "error", 'Invalid type: ClassVar cannot be generic')
+
+
+def UNSUPPORTED_FORWARD_REFERENCE(name: str) -> ErrorCode:
+    return ErrorCode(197, "error", 'Unsupported forward reference to "{}"'.format(name))
+
+
+def INVALID_TUPLE_LITERAL_TYPE() -> ErrorCode:
+    return ErrorCode(198, "error", 'Invalid tuple literal type')
+
+
+def AT_MOST_ONE_STAR_TYPE_ALLOWED_IN_TUPLE() -> ErrorCode:
+    return ErrorCode(199, "error", 'At most one star type allowed in a tuple')
+
+
+def THE_FIRST_ARGUMENT_TO_CALLABLE_MUST_BE() -> ErrorCode:
+    return ErrorCode(200, "error",
+        'The first argument to Callable must be a list of types or "..."')
+
+
+def USE_CALLABLE_TYPE_SYNTAX() -> ErrorCode:
+    return ErrorCode(201, "error",
+        'Please use "Callable[[<parameters>], <return type>]" or "Callable"')
+
+
+def UNEXPECTED_ELLIPSIS() -> ErrorCode:
+    return ErrorCode(202, "error", "Unexpected '...'")
+
+
+def TYPE_VARIABLE_X_IS_BOUND_BY_AN_OUTER_CLASS(name: str) -> ErrorCode:
+    return ErrorCode(203, "error", "Type variable '{}' is bound by an outer class".format(name))
+
+
+def IMPLICIT_GENERIC_ANY_BUILTIN(alternative: str) -> ErrorCode:
+    return ErrorCode(204, "error",
+        'Implicit generic "Any". Use \'{}\' and specify generic parameters'.format(alternative))
+
+
+def X_EXPECTS_Y_BUT_Z_GIVEN(name: str, expect: str, actual: str) -> ErrorCode:
+    return ErrorCode(205, "error", '"{}" expects {}, but {} given'.format(
+        name, expect, actual))

@@ -222,7 +222,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                 return UnionType.make_union(items)
             elif fullname == 'typing.Optional':
                 if len(t.args) != 1:
-                    self.fail('Optional[...] must have exactly one type argument', t)
+                    self.fail(errorcode.OPTIONAL_MUST_HAVE_ONE_ARGUMENT(), t)
                     return AnyType(TypeOfAny.from_error)
                 item = self.anal_type(t.args[0])
                 return make_optional_type(item)
@@ -247,7 +247,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                     return AnyType(TypeOfAny.from_error)
                 item = self.anal_type(t.args[0])
                 if isinstance(item, TypeVarType) or get_type_vars(item):
-                    self.fail('Invalid type: ClassVar cannot be generic', t)
+                    self.fail(errorcode.CLASSVAR_CANNOT_BE_GENERIC(), t)
                     return AnyType(TypeOfAny.from_error)
                 return item
             elif fullname in ('mypy_extensions.NoReturn', 'typing.NoReturn'):
@@ -269,8 +269,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                 if exp_len == 0 and act_len == 0:
                     return override
                 if act_len != exp_len:
-                    self.fail('Bad number of arguments for type alias, expected: %s, given: %s'
-                              % (exp_len, act_len), t)
+                    self.fail(errorcode.BAD_NUMBER_ARGUMENT_FOR_TYPEALIAS(exp_len, act_len), t)
                     return set_any_tvars(override, all_vars or [],
                                          t.line, t.column, implicit=False)
                 assert all_vars is not None
@@ -293,7 +292,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                                  isinstance(sym.node, Var) and sym.node.is_ready) and
                             not (sym.kind == TVAR and tvar_def is None)):
                         if t.args and not self.global_scope:
-                            self.fail('Unsupported forward reference to "{}"'.format(t.name), t)
+                            self.fail(errorcode.UNSUPPORTED_FORWARD_REFERENCE(t.name), t)
                             return AnyType(TypeOfAny.from_error)
                         return ForwardRef(t)
                     self.fail(errorcode.INVALID_TYPE_X(name), t)
@@ -334,7 +333,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                 return instance
         else:
             if self.third_pass:
-                self.fail('Invalid type "{}"'.format(t.name), t)
+                self.fail(errorcode.INVALID_TYPE_X(t.name), t)
                 return AnyType(TypeOfAny.from_error)
             return AnyType(TypeOfAny.special_form)
 
@@ -381,13 +380,13 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
         # Types such as (t1, t2, ...) only allowed in assignment statements. They'll
         # generate errors elsewhere, and Tuple[t1, t2, ...] must be used instead.
         if t.implicit and not self.allow_tuple_literal:
-            self.fail('Invalid tuple literal type', t)
+            self.fail(errorcode.INVALID_TUPLE_LITERAL_TYPE(), t)
             if len(t.items) == 1:
                 self.note_func(errorcode.SUGGESTION_IS_THERE_SPURIOUS_TRAILING_COMMA(), t)
             return AnyType(TypeOfAny.from_error)
         star_count = sum(1 for item in t.items if isinstance(item, StarType))
         if star_count > 1:
-            self.fail('At most one star type allowed in a tuple', t)
+            self.fail(errorcode.AT_MOST_ONE_STAR_TYPE_ALLOWED_IN_TUPLE(), t)
             if t.implicit:
                 return TupleType([AnyType(TypeOfAny.from_error) for _ in t.items],
                                  self.named_type('builtins.tuple'),
@@ -415,7 +414,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
         assert False, "Internal error: Unexpected partial type"
 
     def visit_ellipsis_type(self, t: EllipsisType) -> Type:
-        self.fail("Unexpected '...'", t)
+        self.fail(errorcode.UNEXPECTED_ELLIPSIS(), t)
         return AnyType(TypeOfAny.from_error)
 
     def visit_type_type(self, t: TypeType) -> Type:
@@ -459,10 +458,10 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                                    fallback=fallback,
                                    is_ellipsis_args=True)
             else:
-                self.fail('The first argument to Callable must be a list of types or "..."', t)
+                self.fail(errorcode.THE_FIRST_ARGUMENT_TO_CALLABLE_MUST_BE(), t)
                 return AnyType(TypeOfAny.from_error)
         else:
-            self.fail('Please use "Callable[[<parameters>], <return type>]" or "Callable"', t)
+            self.fail(errorcode.USE_CALLABLE_TYPE_SYNTAX(), t)
             return AnyType(TypeOfAny.from_error)
         assert isinstance(ret, CallableType)
         return ret.accept(self)
@@ -484,7 +483,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                     # Looking it up already put an error message in
                     return None
                 elif found.fullname not in ARG_KINDS_BY_CONSTRUCTOR:
-                    self.fail('Invalid argument constructor "{}"'.format(
+                    self.fail(errorcode.INVALID_ARGUMENT_CONSTRUCTOR(
                         found.fullname), arg)
                     return None
                 else:
@@ -492,7 +491,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
                     kind = ARG_KINDS_BY_CONSTRUCTOR[found.fullname]
                     kinds.append(kind)
                     if arg.name is not None and kind in {ARG_STAR, ARG_STAR2}:
-                        self.fail("{} arguments should not have names".format(
+                        self.fail(errorcode.ARGUMENTS_SHOULD_NOT_HAVE_NAME(
                             arg.constructor), arg)
                         return None
             else:
@@ -563,7 +562,7 @@ class TypeAnalyser(SyntheticTypeVisitor[Type], TypeAnalyzerPluginInterface):
         defs = []  # type: List[TypeVarDef]
         for name, tvar in typevars:
             if not self.tvar_scope.allow_binding(tvar.fullname()):
-                self.fail("Type variable '{}' is bound by an outer class".format(name), defn)
+                self.fail(errorcode.TYPE_VARIABLE_X_IS_BOUND_BY_AN_OUTER_CLASS(name), defn)
             self.tvar_scope.bind_new(name, tvar)
             binding = self.tvar_scope.get_binding(tvar.fullname())
             assert binding is not None
@@ -673,7 +672,7 @@ class TypeAnalyserPass3(TypeVisitor[None]):
                         not self.is_typeshed_stub and
                         from_builtins):
                     alternative = nongen_builtins[t.type.fullname()]
-                    self.fail(messages.IMPLICIT_GENERIC_ANY_BUILTIN.format(alternative), t)
+                    self.fail(errorcode.IMPLICIT_GENERIC_ANY_BUILTIN(alternative), t)
                 # Insert implicit 'Any' type arguments.
                 if from_builtins:
                     # this 'Any' was already reported elsewhere
@@ -694,7 +693,7 @@ class TypeAnalyserPass3(TypeVisitor[None]):
             act = str(len(t.args))
             if act == '0':
                 act = 'none'
-            self.fail('"{}" expects {}, but {} given'.format(
+            self.fail(errorcode.X_EXPECTS_Y_BUT_Z_GIVEN(
                 info.name(), s, act), t)
             # Construct the correct number of type arguments, as
             # otherwise the type checker may crash as it expects
